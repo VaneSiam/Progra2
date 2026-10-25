@@ -120,3 +120,7 @@ No incluir contrasena_hash ni retornar la fila de usuario completa. El frontend 
 5. Verificar un fallo de correo sin repetir la compra: la venta debe persistir y quedar como pendiente. No confundir aceptado con entregado.
 
 La lectura de QR no modifica aforo ni marca ingreso. La transacción de venta existente de la API sigue siendo responsabilidad del backend; estos módulos no la vuelven atómica ni sustituyen autenticación/roles del servidor.
+
+## Pruebas locales del módulo (sin correo real)
+
+En esta carpeta, ejecutar `npm ci` y `npm test`. Las pruebas levantan Express solo en loopback, usan datos ficticios, generan el PDF en memoria y simulan tanto el transporte como Gmail HTTPS. No usan la BD compartida ni credenciales reales.

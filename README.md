@@ -30,7 +30,7 @@ Para otros vendedores, el nombre completo requiere que la API devuelva vendedor_
 - Build y empaquetado con Maven/JDK 26; las clases nuevas también compilan con release 17.
 - Comprobante con dos boletos: tres páginas, fechas legibles y total Q1,225 usando datos ficticios.
 - Lectura del QR desde una imagen del PDF y respuesta HTTP 200 del registro público existente.
-- Backend: prueba con modelos y correo simulados; enlace firmado, rechazo de alteraciones, página Express, privacidad de datos de contacto, adjunto PDF y bloqueo de totales inconsistentes.
+- Backend: `cd backend-para-integrar && npm ci && npm test` con modelos y correo simulados; enlace firmado, rechazo de alteraciones, página Express, privacidad de datos de contacto, adjunto PDF y bloqueo de totales inconsistentes.
 - No se enviaron correos reales ni se escribieron ventas en las pruebas del asistente.
 
 ## Límites pendientes
