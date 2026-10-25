@@ -1,0 +1,10 @@
+target/
+node_modules/
+.env
+.env.*
+!.env.example
+*.log
+nbproject/private/
+.idea/
+.vscode/
+.DS_Store

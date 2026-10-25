@@ -1,0 +1,1 @@
+{"private":true,"name":"svb-comprobantes-integracion","version":"1.0.0","description":"Módulos para integrar en la API Express existente, no es un servidor independiente","dependencies":{"pdfkit":"0.17.2","qrcode":"1.5.4"}}
