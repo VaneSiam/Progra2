@@ -45,6 +45,7 @@ public class MainView extends BorderPane {
             agregar(tabs, "Conciertos", new ConciertosView());
             agregar(tabs, "Localidades e inventario", new InventarioView());
             agregar(tabs, "Usuarios", new UsuariosView());
+            agregar(tabs, "Reportes", new ReportesView());
         }
 
         tabs.getSelectionModel().selectedItemProperty().addListener((o, a, t) -> recargar(t));

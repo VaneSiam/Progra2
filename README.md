@@ -21,6 +21,18 @@ El código QR contiene una URL HTTPS real. Si la API todavía no tiene la págin
 
 Para otros vendedores, el nombre completo requiere que la API devuelva vendedor_nombre. Si no lo hace, se usa el nombre de sesión para ventas propias, o Vendedor #ID. No se consulta el endpoint de usuarios que devuelve credenciales.
 
+## Reportes de ventas (administrador)
+
+La pestaña **Reportes** permite combinar filtros por concierto, artista y vendedor, consultar el resultado y exportarlo a PDF con JasperReports. Usa los importes registrados en los detalles de venta, no precios actuales. Si una compra contiene varios conciertos, cada filtro suma solo sus detalles; no duplica el total de la compra. Incluye total, número de boletos y ventas distintas representadas.
+
+[Instrucciones para copiar el código a NetBeans](docs/REPORTES.md) · [PDF de muestra con datos ficticios](docs/reporte-ventas-ejemplo.pdf)
+
+![Interfaz de reportes con datos ficticios](docs/reportes-interfaz.png)
+
+Las ventas sin detalles se indican en el aviso y no se cuentan como boletos vendidos. Si faltan asociaciones necesarias, el reporte pide revisar/recargar los datos en vez de inventar una cifra. Un artista con ID 0 es compatible. Los vendedores aparecen por ID cuando la API no entrega su nombre. Los nombres de artista/concierto provienen del catálogo actual.
+
+Verificado: build/package, pruebas de filtros y asignación por concierto, interfaz JavaFX real, PDF sin resultados y paginación de 70 filas. Se realizó también una consulta de solo lectura contra la API existente. No se crearon ni borraron ventas, clientes o conciertos.
+
 ## Ejemplo con datos ficticios
 
 [Ver PDF de muestra](docs/comprobante-ejemplo.pdf). No es una venta nueva ni contiene información de clientes reales.
@@ -35,7 +47,7 @@ Para otros vendedores, el nombre completo requiere que la API devuelva vendedor_
 
 ## Límites pendientes
 
-La página visual y el correo automático necesitan desplegar el backend; la cuenta VaneSiam no tenía permiso de escritura en aruizv5-commits/Proyectoapi2026 al preparar esta versión. No hay validación de ingreso ni prevención de reutilización del boleto. Autenticación del servidor, transacciones atómicas, reporte de ventas filtrado y copia histórica de datos son pendientes independientes.
+La página visual y el correo automático necesitan desplegar el backend; la cuenta VaneSiam no tenía permiso de escritura en aruizv5-commits/Proyectoapi2026 al preparar esta versión. No hay validación de ingreso ni prevención de reutilización del boleto. Autenticación del servidor, transacciones atómicas y copia histórica de datos son pendientes independientes.
 
 Los comprobantes usan nombres actuales de los catálogos; eliminar un cliente/concierto asociado puede impedir reimprimirlos. Los importes se toman de los detalles históricos, no de los precios actuales. Este es un documento académico, no una factura fiscal.
 
