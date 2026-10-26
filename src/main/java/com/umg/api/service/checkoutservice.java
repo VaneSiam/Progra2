@@ -30,6 +30,10 @@ public class checkoutservice {
             if (item.id_inventario() < 1 || item.cantidad() != 1 || !unicos.add(item.id_inventario()))
                 throw new Exception("Selecciona asientos válidos y sin repetir; esta API vende uno por detalle.");
         }
+        // Revisa el cliente actualizado antes de crear la cabecera de la compra.
+        var clienteActual = HttpJson.get("/cliente/" + idCliente);
+        com.umg.api.validacion.Validaciones.correo(clienteActual.path("correo").asText(""));
+        com.umg.api.validacion.Validaciones.telefono(clienteActual.path("telefono").asText(""));
         // 1. crear la venta
         ventas nueva = new ventas(0, idVendedor, Instant.now().toString(), 0);
         ventas creada = new ventasservice().createVentas(nueva);

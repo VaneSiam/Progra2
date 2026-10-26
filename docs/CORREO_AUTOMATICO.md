@@ -17,7 +17,7 @@ requiere revisar Gmail antes de desbloquearlo.
 La integración completa para el repositorio de API está incluida en
 `backend-para-integrar/java-correo/0001-correo-pdf-java.patch`, basada en el commit
 `28381a89419bafc40190613e201725ca1989e9e2`. En un checkout limpio de esa versión,
-aplicar con `git am /ruta/0001-correo-pdf-java.patch`, luego `npm ci` y `npm test`.
+aplicar con `git am /ruta/0001-correo-pdf-java.patch`, luego `npm ci` y `npm test`. El archivo actualizado contiene dos commits: correo y validaciones.
 Si se publica la rama de API que contiene el mismo commit, NO aplicar el parche
 otra vez. No mezclar este parche con la integración anterior que genera PDF en Node.
 
@@ -45,6 +45,7 @@ Con las dependencias Maven y `target/classes` en el classpath, compilar
 `verificacion/PruebaCorreoJava.java` y ejecutar la prueba Node `test/java-correo.cjs`
 del backend pasando ese classpath y un directorio temporal. La prueba usa Express,
 JasperReports y lectura de QR reales con datos ficticios; no manda correos reales.
+Las reglas nuevas se documentan en `docs/VALIDACION_CAMPOS.md`.
 Se verificó un PDF de tres páginas, Q250.00, dos boletos; una sola compra y un solo
 envío aunque se consulte otra vez. La configuración de Gmail y el despliegue deben
 validarse finalmente con una cuenta de prueba controlada.

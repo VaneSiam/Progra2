@@ -3,6 +3,8 @@ package com.umg.api.fx.view;
 import com.umg.api.config.Sesion;
 import com.umg.api.fx.util.Async;
 import com.umg.api.fx.util.Ui;
+import com.umg.api.fx.util.Filtros;
+import com.umg.api.validacion.Validaciones;
 import com.umg.api.model.usuario;
 import com.umg.api.service.usuarioservice;
 import javafx.geometry.Insets;
@@ -24,6 +26,7 @@ public class UsuariosView extends HBox implements Recargable {
     private final ComboBox<String> cbRol = new ComboBox<>();
 
     public UsuariosView() {
+        Filtros.nombre(txtNombre,100);
         setSpacing(16);
         setPadding(new Insets(14));
 
@@ -69,6 +72,13 @@ public class UsuariosView extends HBox implements Recargable {
             Ui.error("Completa usuario y nombre. La contraseña debe tener al menos 6 caracteres.");
             return;
         }
+        try {
+            n=Validaciones.nombre(n,"Nombre completo",100,true);
+            Validaciones.texto(u,"Usuario",50,true);
+            if(!u.matches("[A-Za-z0-9_.-]+")) throw new IllegalArgumentException("Usuario: utiliza letras, números, punto, guion o guion bajo.");
+            Validaciones.texto(p,"Contraseña",200,true);
+            if(!java.util.List.of("vendedor","administrador").contains(cbRol.getValue())) throw new IllegalArgumentException("Selecciona un rol válido.");
+        } catch (IllegalArgumentException ex) { Ui.error(ex.getMessage()); return; }
         // El modelo solo tiene el campo contrasena_hash. La API lo guarda tal como llega
         // y el login compara ese mismo valor con lo que escribe el usuario.
         usuario nuevo = new usuario(0, u, p, n, cbRol.getValue(), null, true);

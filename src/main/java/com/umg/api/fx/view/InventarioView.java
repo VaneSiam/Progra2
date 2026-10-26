@@ -2,6 +2,8 @@ package com.umg.api.fx.view;
 
 import com.umg.api.fx.util.Async;
 import com.umg.api.fx.util.Ui;
+import com.umg.api.fx.util.Filtros;
+import com.umg.api.validacion.Validaciones;
 import com.umg.api.model.concierto;
 import com.umg.api.model.inventarios_boletos;
 import com.umg.api.model.localidad;
@@ -32,6 +34,7 @@ public class InventarioView extends HBox implements Recargable {
     private final TextField txtPrecio = new TextField();
 
     public InventarioView() {
+        Filtros.precio(txtPrecio);
         setSpacing(16);
         setPadding(new Insets(14));
 
@@ -117,17 +120,9 @@ public class InventarioView extends HBox implements Recargable {
             Ui.error("Este concierto ya tiene asientos.");
             return;
         }
-        float precio;
-        try {
-            precio = Float.parseFloat(txtPrecio.getText().trim().replace(",", "."));
-        } catch (NumberFormatException e) {
-            Ui.error("El precio debe ser un número.");
-            return;
-        }
-        if (precio <= 0) {
-            Ui.error("El precio debe ser mayor que cero.");
-            return;
-        }
+        final float precio;
+        try { precio=Validaciones.precio(txtPrecio.getText()).floatValue(); }
+        catch (IllegalArgumentException ex) { Ui.error(ex.getMessage()); return; }
         Async.run(() -> { new localidadservice().generarAsientos(c.getId_concierto(), precio); return true; },
                 ok -> {
                     txtPrecio.clear();

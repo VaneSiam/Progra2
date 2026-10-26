@@ -2,6 +2,8 @@ package com.umg.api.fx.view;
 
 import com.umg.api.fx.util.Async;
 import com.umg.api.fx.util.Ui;
+import com.umg.api.fx.util.Filtros;
+import com.umg.api.validacion.Validaciones;
 import com.umg.api.model.artista;
 import com.umg.api.model.concierto;
 import com.umg.api.service.artistaservice;
@@ -40,6 +42,7 @@ public class ConciertosView extends HBox implements Recargable {
     private concierto seleccionado;
 
     public ConciertosView() {
+        Filtros.nombre(txtTipo,50); Filtros.nombre(txtCiudad,100);
         setSpacing(16);
         setPadding(new Insets(14));
 
@@ -147,6 +150,14 @@ public class ConciertosView extends HBox implements Recargable {
                 return;
             }
         }
+        try {
+            Validaciones.texto(titulo,"Título del evento",150,true);
+            Validaciones.texto(recinto,"Recinto",120,true);
+            Validaciones.nombre(txtCiudad.getText(),"Ciudad",100,true);
+            Validaciones.nombre(txtTipo.getText(),"Tipo de evento",50,true);
+            if(!horario.matches("(?:[01][0-9]|2[0-3]):[0-5][0-9]")) throw new IllegalArgumentException("Horario obligatorio en formato HH:mm.");
+            if(!ESTADOS.contains(cbEstado.getValue())) throw new IllegalArgumentException("Selecciona un estado válido.");
+        } catch (IllegalArgumentException ex) { Ui.error(ex.getMessage()); return; }
         concierto sel = seleccionado;
         concierto c = new concierto(sel == null ? 0 : sel.getId_concierto(), art.getId_artista(), titulo, recinto,
                 txtCiudad.getText().trim(), cbEstado.getValue(), txtTipo.getText().trim(), fecha.toString(), horario);

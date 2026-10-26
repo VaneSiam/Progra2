@@ -2,6 +2,8 @@ package com.umg.api.fx.view;
 
 import com.umg.api.fx.util.Async;
 import com.umg.api.fx.util.Ui;
+import com.umg.api.fx.util.Filtros;
+import com.umg.api.validacion.Validaciones;
 import com.umg.api.model.cliente;
 import com.umg.api.service.clienteservice;
 import javafx.geometry.Insets;
@@ -27,6 +29,9 @@ public class ClientesView extends HBox implements Recargable {
     private cliente seleccionado;
 
     public ClientesView() {
+        Filtros.nombre(txtNombre,100); Filtros.nombre(txtApellido,100);
+        Filtros.telefono(txtTelefono); Filtros.correo(txtCorreo);
+        txtTelefono.setPromptText("8 a 15 dígitos"); txtCorreo.setPromptText("nombre@dominio.com (obligatorio)");
         setSpacing(16);
         setPadding(new Insets(14));
 
@@ -59,7 +64,7 @@ public class ClientesView extends HBox implements Recargable {
         eliminar.setOnAction(e -> eliminar());
         VBox der = new VBox(12, titulo,
                 Ui.form("Nombre", txtNombre, "Apellido", txtApellido, "NIT", txtNit, "Teléfono", txtTelefono,
-                        "Correo", txtCorreo, "Dirección", txtDireccion, "", chkActivo),
+                        "Correo obligatorio", txtCorreo, "Dirección", txtDireccion, "", chkActivo),
                 new HBox(8, nuevo, guardar, eliminar));
         der.getStyleClass().add("panel");
         der.setPrefWidth(360);
@@ -93,15 +98,16 @@ public class ClientesView extends HBox implements Recargable {
     }
 
     private void guardar() {
-        String nombre = txtNombre.getText().trim();
-        if (nombre.isEmpty()) {
-            Ui.error("El nombre es obligatorio.");
-            return;
-        }
         cliente sel = seleccionado;
-        cliente c = new cliente(sel == null ? 0 : sel.getId(), nombre, txtApellido.getText().trim(),
-                txtDireccion.getText().trim(), txtCorreo.getText().trim(), txtTelefono.getText().trim(),
-                txtNit.getText().trim(), chkActivo.isSelected());
+        final cliente c;
+        try {
+            c = new cliente(sel == null ? 0 : sel.getId(),
+                Validaciones.nombre(txtNombre.getText(),"Nombre",100,true),
+                Validaciones.nombre(txtApellido.getText(),"Apellido",100,true),
+                Validaciones.texto(txtDireccion.getText(),"Dirección",255,false),
+                Validaciones.correo(txtCorreo.getText()),Validaciones.telefono(txtTelefono.getText()),
+                Validaciones.nit(txtNit.getText()),chkActivo.isSelected());
+        } catch (IllegalArgumentException ex) { Ui.error(ex.getMessage()); return; }
         Async.run(() -> sel == null
                 ? new clienteservice().createCliente(c)
                 : new clienteservice().updateCliente(sel.getId(), c),

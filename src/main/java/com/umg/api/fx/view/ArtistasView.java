@@ -2,6 +2,8 @@ package com.umg.api.fx.view;
 
 import com.umg.api.fx.util.Async;
 import com.umg.api.fx.util.Ui;
+import com.umg.api.fx.util.Filtros;
+import com.umg.api.validacion.Validaciones;
 import com.umg.api.model.artista;
 import com.umg.api.service.artistaservice;
 import javafx.geometry.Insets;
@@ -22,6 +24,7 @@ public class ArtistasView extends HBox implements Recargable {
     private artista seleccionado;
 
     public ArtistasView() {
+        Filtros.nombre(txtNombre,120); Filtros.nombre(txtGenero,50); Filtros.nombre(txtPais,50);
         setSpacing(16);
         setPadding(new Insets(14));
 
@@ -76,13 +79,14 @@ public class ArtistasView extends HBox implements Recargable {
     }
 
     private void guardar() {
-        String n = txtNombre.getText().trim(), g = txtGenero.getText().trim(), p = txtPais.getText().trim();
-        if (n.isEmpty() || g.isEmpty()) {
-            Ui.error("El nombre artístico y el género son obligatorios.");
-            return;
-        }
         artista sel = seleccionado;
-        artista a = new artista(sel == null ? 0 : sel.getId_artista(), n, g, p.isEmpty() ? null : p);
+        final artista a;
+        try {
+            String n=Validaciones.nombre(txtNombre.getText(),"Nombre artístico",120,true);
+            String g=Validaciones.nombre(txtGenero.getText(),"Género musical",50,true);
+            String p=Validaciones.nombre(txtPais.getText(),"País de origen",50,false);
+            a=new artista(sel==null?0:sel.getId_artista(),n,g,p.isEmpty()?null:p);
+        } catch (IllegalArgumentException ex) { Ui.error(ex.getMessage()); return; }
         Async.run(() -> sel == null
                 ? new artistaservice().createArtista(a)
                 : new artistaservice().updateArtista(sel.getId_artista(), a),

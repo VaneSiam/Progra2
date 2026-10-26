@@ -3,6 +3,8 @@ package com.umg.api.fx.view;
 import com.umg.api.config.Sesion;
 import com.umg.api.fx.util.Async;
 import com.umg.api.fx.util.Ui;
+import com.umg.api.fx.util.Filtros;
+import com.umg.api.validacion.Validaciones;
 import com.umg.api.model.artista;
 import com.umg.api.model.cliente;
 import com.umg.api.model.concierto;
@@ -343,6 +345,12 @@ public class PuntoVentaView extends HBox implements Recargable {
         if (cbCliente.getValue() == null) {
             Ui.error("Selecciona el cliente de la venta.");
             return;
+        }
+        try {
+            Validaciones.correo(cbCliente.getValue().getCorreo());
+            Validaciones.telefono(cbCliente.getValue().getTelefono());
+        } catch (IllegalArgumentException ex) {
+            Ui.error("Corrige los datos del cliente en Clientes antes de vender. " + ex.getMessage()); return;
         }
         int boletos = carrito.stream().mapToInt(Linea::cantidad).sum();
         if (!Ui.confirmar(boletos + " boleto(s) por " + Ui.dinero(total()) + "\n¿Confirmar la venta?")) return;

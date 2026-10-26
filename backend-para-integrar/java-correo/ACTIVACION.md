@@ -67,7 +67,7 @@ No se migran ni reescriben las contraseñas existentes.
 
 ## Verificación reproducible sin correos reales
 
-`npm test`: seis casos, incluyendo composición MIME real y Gmail simulado,
+`npm test`: nueve casos, incluyendo composición MIME real y Gmail simulado,
 propiedad de ventas, concurrencia, reintentos, totales, PDF y errores.
 Para la integración completa, compilar Java y `verificacion/PruebaCorreoJava.java`
 y ejecutar `node test/java-correo.cjs '<classpath Java con clases de prueba>' '<directorio temporal>'`.
@@ -76,3 +76,5 @@ PDF real generado por JasperReports: tres páginas, dos boletos QR, Q250.00.
 No se accede a PostgreSQL compartido ni se envían correos reales. Las pruebas usan
 un repositorio simulado; la migración y concurrencia deben comprobarse además en
 PostgreSQL de pruebas antes de publicar en producción.
+
+Las reglas de todos los formularios y las limitaciones del QR se describen en `VALIDACION_CAMPOS.md`.

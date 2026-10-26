@@ -1,8 +1,8 @@
 From 5fdc8a3ab502f7bf2540343e41a6e65bf24fd7e8 Mon Sep 17 00:00:00 2001
 From: VaneSiam <karlasiam18@gmail.com>
 Date: Mon, 26 Oct 2026 20:28:55 +0000
-Subject: [PATCH] =?UTF-8?q?Integra=20recepci=C3=B3n=20del=20PDF=20de=20Jav?=
- =?UTF-8?q?a=20y=20env=C3=ADo=20de=20comprobantes=20por=20Gmail?=
+Subject: [PATCH 1/2] =?UTF-8?q?Integra=20recepci=C3=B3n=20del=20PDF=20de?=
+ =?UTF-8?q?=20Java=20y=20env=C3=ADo=20de=20comprobantes=20por=20Gmail?=
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
@@ -609,6 +609,257 @@ index 0000000..a64c40e
 +  catch(e){console.error(e);process.exitCode=1;}
 +  finally{server.close();}
 + });
++});
+-- 
+2.52.0
+
+
+From f51de34a29b204ae7849e69298b6efe59f26a282 Mon Sep 17 00:00:00 2001
+From: VaneSiam <karlasiam18@gmail.com>
+Date: Mon, 26 Oct 2026 20:43:25 +0000
+Subject: [PATCH 2/2] =?UTF-8?q?Valida=20correo=20obligatorio,=20nombres,?=
+ =?UTF-8?q?=20tel=C3=A9fonos=20y=20formularios=20en=20la=20API?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ COMPROBANTES_JAVA.md                          |  4 +-
+ .../controller/detalle_ventas.controller.js   |  9 +++
+ .../middleware/validar-campos.js              | 62 +++++++++++++++++++
+ VALIDACION_CAMPOS.md                          | 57 +++++++++++++++++
+ server.js                                     |  2 +
+ test/validacion.test.cjs                      | 37 +++++++++++
+ 6 files changed, 170 insertions(+), 1 deletion(-)
+ create mode 100644 Proyecto_final_progra2/middleware/validar-campos.js
+ create mode 100644 VALIDACION_CAMPOS.md
+ create mode 100644 test/validacion.test.cjs
+
+diff --git a/COMPROBANTES_JAVA.md b/COMPROBANTES_JAVA.md
+index 1dde975..d67f1b2 100644
+--- a/COMPROBANTES_JAVA.md
++++ b/COMPROBANTES_JAVA.md
+@@ -67,7 +67,7 @@ No se migran ni reescriben las contraseñas existentes.
+ 
+ ## Verificación reproducible sin correos reales
+ 
+-`npm test`: seis casos, incluyendo composición MIME real y Gmail simulado,
++`npm test`: nueve casos, incluyendo composición MIME real y Gmail simulado,
+ propiedad de ventas, concurrencia, reintentos, totales, PDF y errores.
+ Para la integración completa, compilar Java y `verificacion/PruebaCorreoJava.java`
+ y ejecutar `node test/java-correo.cjs '<classpath Java con clases de prueba>' '<directorio temporal>'`.
+@@ -76,3 +76,5 @@ PDF real generado por JasperReports: tres páginas, dos boletos QR, Q250.00.
+ No se accede a PostgreSQL compartido ni se envían correos reales. Las pruebas usan
+ un repositorio simulado; la migración y concurrencia deben comprobarse además en
+ PostgreSQL de pruebas antes de publicar en producción.
++
++Las reglas de todos los formularios y las limitaciones del QR se describen en `VALIDACION_CAMPOS.md`.
+diff --git a/Proyecto_final_progra2/controller/detalle_ventas.controller.js b/Proyecto_final_progra2/controller/detalle_ventas.controller.js
+index 7be4829..fdd850e 100644
+--- a/Proyecto_final_progra2/controller/detalle_ventas.controller.js
++++ b/Proyecto_final_progra2/controller/detalle_ventas.controller.js
+@@ -82,6 +82,15 @@ exports.create = async (req, res) => {
+         return;
+     }
+ 
++    // No iniciar escrituras si el cliente no puede recibir sus boletos.
++    try {
++        const reglas = require('../middleware/validar-campos').reglas;
++        reglas.correo(clienteID.correo);
++        reglas.telefono(clienteID.telefono);
++    } catch (err) {
++        return res.status(400).send({message: err.message});
++    }
++
+     if(!Array.isArray(id_inventarios) || id_inventarios.length === 0){
+         res.status(404).send({
+             message: "tiene que enviar el numero de inventario"
+diff --git a/Proyecto_final_progra2/middleware/validar-campos.js b/Proyecto_final_progra2/middleware/validar-campos.js
+new file mode 100644
+index 0000000..dbb88b9
+--- /dev/null
++++ b/Proyecto_final_progra2/middleware/validar-campos.js
+@@ -0,0 +1,62 @@
++const fallo = mensaje => {throw Object.assign(new Error(mensaje),{validacion:true});};
++const texto=(v,c,max,obligatorio=true)=>{
++ if(v==null && !obligatorio)return '';
++ if(typeof v!=='string')return fallo(c+': debe ser texto.');
++ const s=v.trim();
++ if((obligatorio && !s) || s.length>max || /[\u0000-\u001f\u007f-\u009f]/u.test(s))return fallo(c+': completa un valor válido de hasta '+max+' caracteres.');
++ return s;
++};
++const nombre=(v,c,max,obligatorio=true)=>{
++ const s=texto(v,c,max,obligatorio);
++ if(s && (!/^[\p{L}\p{M} .’'&/\-]+$/u.test(s) || !/\p{L}/u.test(s)))return fallo(c+': utiliza letras, sin números.');
++ return s;
++};
++const correo=v=>{
++ const s=texto(v,'Correo electrónico',254);
++ const partes=s.split('@');
++ if(partes.length!==2 || partes[0].length>64 || s.startsWith('.') || s.includes('..') || s.includes('.@') || !/^[A-Za-z0-9!#$%&'*+/=?^_`{|}~.-]+@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+$/.test(s))return fallo('Correo electrónico obligatorio: escribe una dirección válida.');
++ return s;
++};
++const telefono=v=>{const s=texto(v,'Teléfono',15);if(!/^[0-9]{8,15}$/.test(s))return fallo('Teléfono: escribe de 8 a 15 dígitos, sin signos ni letras.');return s;};
++const nit=v=>{const s=texto(v,'NIT',20).toUpperCase();if(!/^(?:CF|[0-9]+-?[0-9K])$/.test(s))return fallo('NIT: utiliza CF o dígitos con guion opcional y dígito final o K.');return s;};
++const entero=v=>{if(!Number.isSafeInteger(Number(v)) || Number(v)<1 || typeof v==='boolean')return fallo('El identificador debe ser un entero positivo.');return Number(v);};
++const precio=v=>{const s=String(v);if(!/^[0-9]{1,8}(?:\.[0-9]{1,2})?$/.test(s) || !Number.isFinite(Number(v)) || Number(v)<=0)return fallo('Precio: mayor que cero, hasta 8 enteros y 2 decimales.');return Number(v);};
++const fecha=v=>{
++ const s=texto(v,'Fecha',40);const prefijo=s.slice(0,10);
++ if(!/^\d{4}-\d{2}-\d{2}(?:$|T)/.test(s) || !Number.isFinite(Date.parse(s)) || new Date(prefijo).toISOString().slice(0,10)!==prefijo)return fallo('Fecha de concierto inválida.');return s;
++};
++const booleano=v=>{if(typeof v!=='boolean')return fallo('El estado activo debe ser verdadero o falso.');return v;};
++const schemas={
++ cliente:{nombre:v=>nombre(v,'Nombre',100),apellido:v=>nombre(v,'Apellido',100),correo,telefono,nit,direccion:v=>texto(v,'Dirección',255,false)},
++ artista:{nombre_artistico:v=>nombre(v,'Nombre artístico',120),genero_musical:v=>nombre(v,'Género musical',50),pais_origen:v=>nombre(v,'País de origen',50,false)},
++ concierto:{id_artista:entero,titulo_evento:v=>texto(v,'Título del evento',150),recinto:v=>texto(v,'Recinto',120),ciudad:v=>nombre(v,'Ciudad',100),tipo_evento:v=>nombre(v,'Tipo de evento',50),fecha_concierto:fecha,
++ horario:v=>{if(typeof v!=='string' || !/^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/.test(v))return fallo('Horario obligatorio en formato HH:mm.');return v;},
++ estado:v=>{if(!['programado','activo','finalizado','cancelado','Agotado'].includes(v))return fallo('Estado del concierto inválido.');return v;}},
++ usuario:{nombre_usuario:v=>{const s=texto(v,'Usuario',50);if(!/^[A-Za-z0-9_.-]+$/.test(s))return fallo('Usuario: utiliza letras, números, punto, guion o guion bajo.');return s;},nombre_completo:v=>nombre(v,'Nombre completo',100),
++ contrasena_hash:v=>{if(typeof v!=='string' || v.length<6 || v.length>200 || /[\u0000-\u001f]/u.test(v))return fallo('Contraseña: de 6 a 200 caracteres.');return v;},
++ rol:v=>{if(!['administrador','vendedor'].includes(v))return fallo('Selecciona un rol válido.');return v;}},
++ localidades:{id_concierto:entero,precio}
++};
++module.exports=function validarCampos(db) {
++ return async(req,res,next)=>{
++  const m=req.path.match(/^\/(cliente|artista|concierto|usuario|localidades)\/(create\/?|update\/([0-9]+)\/?)$/);
++  if(!m || !['POST','PUT'].includes(req.method))return next();
++  try {
++   const entidad=m[1],actualizar=m[2].startsWith('update');
++   if(!req.body || typeof req.body!=='object' || Array.isArray(req.body))return fallo('El formulario debe contener un objeto JSON.');
++   let datos=req.body;
++   if(actualizar) {
++    const registro=await db[entidad].findByPk(Number(m[3]));
++    if(!registro)return res.status(404).json({message:'Registro no encontrado.'});
++    datos={...(registro.toJSON?registro.toJSON():registro),...req.body};
++   }
++   for(const [campo,regla] of Object.entries(schemas[entidad])) {
++    const normalizado=regla(datos[campo]);
++    if(Object.hasOwn(req.body,campo))req.body[campo]=normalizado;
++   }
++   if(Object.hasOwn(req.body,'status'))booleano(req.body.status);
++   next();
++  }catch(e){res.status(e.validacion?400:503).json({message:e.validacion?e.message:'No se pudieron validar los datos. Intenta nuevamente.'});}
++ };
++};
++module.exports.reglas={correo,telefono,nombre,precio,nit,fecha};
+diff --git a/VALIDACION_CAMPOS.md b/VALIDACION_CAMPOS.md
+new file mode 100644
+index 0000000..6b140fc
+--- /dev/null
++++ b/VALIDACION_CAMPOS.md
+@@ -0,0 +1,57 @@
++# Validación de formularios
++
++Reglas aplicadas en los formularios JavaFX activos y también en el parche de la API:
++
++| Campo | Regla |
++| --- | --- |
++| Nombre, apellido y nombre completo | Obligatorios, letras Unicode (tildes y ñ), sin dígitos. |
++| Nombre artístico y género | Obligatorios, sin dígitos. Se permite puntuación como AC/DC, R&B y apóstrofos. |
++| País | Opcional, letras sin dígitos si se completa. |
++| Ciudad y tipo de evento | Obligatorios, letras sin dígitos. |
++| Correo del cliente | Obligatorio, formato local@dominio.extensión, sin espacios. No confirma existencia del buzón. |
++| Teléfono | Obligatorio, 8 a 15 dígitos ASCII, sin espacios, guiones ni signo +. |
++| NIT | CF o dígitos con guion opcional y terminación en dígito o K; no consulta SAT. |
++| Precio | Mayor que cero, hasta ocho enteros y dos decimales. Rechaza NaN, infinito y notación científica. Java acepta punto o coma decimal y envía número. |
++| Usuario de acceso | Letras ASCII, números, punto, guion y guion bajo. |
++| Título, recinto y dirección | Admiten números: Gira 2026, Estadio 2, Zona 10. Longitud limitada y sin controles. |
++| Fecha y horario | Fecha válida y hora obligatoria en formato HH:mm. |
++| Rol y estado | Selección de las opciones permitidas. |
++
++Las longitudes se limitan según cada campo. La contraseña conserva su política de
++al menos seis y hasta 200 caracteres y admite números y símbolos.
++
++Las restricciones de nombres y teléfono se aplican al escribir y pegar en campos
++con foco. Los valores heredados se muestran al seleccionar un registro, aunque
++sean inválidos, para poder corregirlos. Guardar siempre valida el valor completo:
++no se borra ni se modifica automáticamente ningún registro existente.
++
++Antes de crear una venta, el servicio Java vuelve a consultar el cliente y exige
++correo válido y teléfono correcto. El formulario de venta también lo comprueba
++y explica que deben corregirse en Clientes. La API comprueba ambos datos antes
++de escribir detalles. Un error no debe resolverse repitiendo una compra incierta.
++
++En la API, crear valida todos los campos obligatorios. Editar combina los datos
++existentes con los cambios antes de validar, de modo que tampoco se pueda dejar
++un cliente antiguo con correo inválido mediante una edición parcial. Las
++lecturas y eliminaciones no se alteran.
++
++## Comprobante y QR actuales
++
++El comprobante contiene número y fecha de venta (hora de Guatemala), vendedor,
++cliente, teléfono, evento, tipo de entrada, cantidades, precios, subtotales,
++total y observaciones. Cada boleto incluye evento, fecha, recinto, localidad y
++asiento, precio, referencia de boleto/venta y QR.
++
++En esta integración el QR abre el registro de detalle existente en la API. Si la
++API proporciona `qr_url`, se usa esa URL validando su dominio. La página visual
++y la firma del QR de la integración antigua del backend no están activadas por
++este parche de correo. Escanear no registra ingreso ni consumo del boleto. La
++lista adicional que la usuaria haya indicado en otra conversación debe
++confirmarse antes de cambiar el contenido del QR.
++
++## Verificación
++
++Compilación Maven, `verificacion/PruebaValidaciones.java`, nueve casos Node y
++regresión de integración Java → Express con el PDF real y correo simulado.
++La API debe publicar el parche actualizado para aplicar reglas a solicitudes
++remotas. La rama de Java por sí sola no modifica Render.
+diff --git a/server.js b/server.js
+index efab2e8..eebdc57 100644
+--- a/server.js
++++ b/server.js
+@@ -26,6 +26,8 @@ app.get("/", (req, res) => {
+   res.json({ message: "UMG Web Application" });
+ });
+ 
++// Reglas de formulario también en el servidor, antes de cualquier escritura.
++app.use('/api', require('./Proyecto_final_progra2/middleware/validar-campos')(db));
+ //require("./app/routes/turorial.routes")(app);
+ require("./Proyecto_final_progra2/route/artista.route")(app);
+ require("./Proyecto_final_progra2/route/concierto.route")(app);
+diff --git a/test/validacion.test.cjs b/test/validacion.test.cjs
+new file mode 100644
+index 0000000..c17af0a
+--- /dev/null
++++ b/test/validacion.test.cjs
+@@ -0,0 +1,37 @@
++const {test}=require('node:test');
++const assert=require('node:assert/strict');
++const express=require('express');
++const validar=require('../Proyecto_final_progra2/middleware/validar-campos');
++const r=validar.reglas;
++test('nombres con tildes y puntuación; rechaza dígitos y campos vacíos',()=>{
++ for(const n of ['José María','Muñoz','D’Angelo','AC/DC','R&B'])assert.equal(r.nombre(n,'Nombre',120),n);
++ for(const n of ['Artista123','123','   ','---','José\nLuis'])assert.throws(()=>r.nombre(n,'Nombre',120));
++});
++test('correo obligatorio, teléfono solo dígitos y precio finito con 2 decimales',()=>{
++ for(const s of ['','correo','a@b','a..b@dominio.com','.a@dominio.com','a.@dominio.com','a b@dominio.com','a@-dominio.com'])assert.throws(()=>r.correo(s));
++ assert.equal(r.correo(' persona+ventas@dominio.com '),'persona+ventas@dominio.com');
++ for(const s of ['1234567','1234-5678','1234567a','+50212345678','1234567890123456'])assert.throws(()=>r.telefono(s));
++ assert.equal(r.telefono('50212345678'),'50212345678');
++ for(const s of ['NaN','Infinity','-1','0','1e3','12.345'])assert.throws(()=>r.precio(s));
++ assert.equal(r.precio('12.50'),12.5);assert.throws(()=>r.fecha('2026-02-30'));assert.equal(r.fecha('2028-02-29'),'2028-02-29');
++});
++test('rutas de creación y edición bloquean escritura y permiten campos alfanuméricos apropiados',async()=>{
++ const app=express();let escritos=0;
++ app.use(express.json());
++ const base={id:1,nombre:'Ana',apellido:'López',correo:'ana@example.invalid',telefono:'12345678',nit:'CF',direccion:'Zona 10, casa 2'};
++ app.use('/api',validar({cliente:{findByPk:async()=>base}}));
++ app.use('/api',(_q,res)=>{escritos++;res.json({ok:true});});
++ const s=app.listen(0,'127.0.0.1');await new Promise(r=>s.once('listening',r));
++ const req=async(url,body,method='POST')=>fetch('http://127.0.0.1:'+s.address().port+'/api/'+url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
++ try {
++  for(const cambios of [{correo:''},{telefono:'abcd1234'},{nombre:'Ana1'},{apellido:'123'}])assert.equal((await req('cliente/create',{...base,...cambios})).status,400);
++  assert.equal(escritos,0);
++  assert.equal((await req('cliente/create',base)).status,200);
++  assert.equal((await req('cliente/update/1',{correo:'no'},'PUT')).status,400);
++  assert.equal((await req('cliente/update/1',{direccion:'Zona 1, casa 23'},'PUT')).status,200);
++  assert.equal((await req('artista/create',{nombre_artistico:'Artista 123',genero_musical:'Pop'})).status,400);
++  assert.equal((await req('concierto/create',{id_artista:1,titulo_evento:'Gira 2026',recinto:'Estadio 2',ciudad:'Guatemala',tipo_evento:'Concierto',fecha_concierto:'2026-12-01',horario:'20:30',estado:'programado'})).status,200);
++  assert.equal((await req('localidades/create',{id_concierto:1,precio:'NaN'})).status,400);
++  assert.equal(escritos,3);
++ }finally{await new Promise(r=>s.close(r));}
 +});
 -- 
 2.52.0
