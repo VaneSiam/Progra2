@@ -1,0 +1,615 @@
+From 5fdc8a3ab502f7bf2540343e41a6e65bf24fd7e8 Mon Sep 17 00:00:00 2001
+From: VaneSiam <karlasiam18@gmail.com>
+Date: Mon, 26 Oct 2026 20:28:55 +0000
+Subject: [PATCH] =?UTF-8?q?Integra=20recepci=C3=B3n=20del=20PDF=20de=20Jav?=
+ =?UTF-8?q?a=20y=20env=C3=ADo=20de=20comprobantes=20por=20Gmail?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ COMPROBANTES_JAVA.md                          |  78 +++++++++++
+ .../controller/detalle_ventas.controller.js   |   2 +-
+ Proyecto_final_progra2/models/index.js        |   8 ++
+ .../service/comprobante-correo.js             | 132 ++++++++++++++++++
+ .../service/correo-gmail.js                   |  19 +++
+ package-lock.json                             |  38 +++++
+ package.json                                  |  10 +-
+ server.js                                     |   9 +-
+ test/comprobante-correo.test.cjs              |  63 +++++++++
+ test/correo-gmail.test.cjs                    |  23 +++
+ test/fixture.cjs                              |  23 +++
+ test/java-correo.cjs                          |  37 +++++
+ 12 files changed, 434 insertions(+), 8 deletions(-)
+ create mode 100644 COMPROBANTES_JAVA.md
+ create mode 100644 Proyecto_final_progra2/service/comprobante-correo.js
+ create mode 100644 Proyecto_final_progra2/service/correo-gmail.js
+ create mode 100644 test/comprobante-correo.test.cjs
+ create mode 100644 test/correo-gmail.test.cjs
+ create mode 100644 test/fixture.cjs
+ create mode 100644 test/java-correo.cjs
+
+diff --git a/COMPROBANTES_JAVA.md b/COMPROBANTES_JAVA.md
+new file mode 100644
+index 0000000..1dde975
+--- /dev/null
++++ b/COMPROBANTES_JAVA.md
+@@ -0,0 +1,78 @@
++# Comprobante JasperReports generado en Java y enviado por Gmail
++
++Java registra la compra con el flujo existente. Una vez confirmados los detalles,
++genera un único PDF (comprobante y páginas de boletos QR), lo envía en base64 y
++Node lo adjunta al correo del cliente consultado en PostgreSQL. No se acepta un
++destinatario indicado por Java. No se genera otro PDF en Node.
++
++## Activación en Render
++
++1. Publicar esta rama del backend y ejecutar `npm ci` y `npm test`.
++2. Configurar las variables de entorno en el panel del servicio (nunca en Git ni en Java):
++
++   - `COMPROBANTE_JAVA_ENABLED=true`
++   - `COMPROBANTE_SESSION_SECRET`: secreto aleatorio de 32 bytes o más. Generar con `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` en un equipo de confianza.
++   - `MAIL_FROM`: dirección Gmail del remitente, sin nombre ni corchetes.
++   - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`: credenciales OAuth de esa cuenta con autorización `https://www.googleapis.com/auth/gmail.send`.
++
++3. Habilitar Gmail API en el proyecto de Google Cloud; configurar la pantalla de consentimiento y un cliente OAuth. Autorizar la cuenta remitente con acceso offline y obtener el refresh token. Si se usa OAuth Playground con credenciales propias, registrar `https://developers.google.com/oauthplayground` como URI de retorno. No compartir el token en el chat. Las aplicaciones externas en modo de prueba pueden emitir refresh tokens con vigencia de siete días; revisar el estado del consentimiento para uso sostenido.
++4. Redesplegar. El arranque espera `sequelize.sync()` y crea únicamente la tabla nueva `comprobantes_correo` si no existe; no usa `force` ni `alter`. La cuenta PostgreSQL necesita permiso para crearla. La sincronización previa de las demás tablas conserva el comportamiento existente.
++5. Usar el cliente Java actualizado y volver a iniciar sesión para recibir el token (ocho horas).
++6. Con una cuenta de correo de prueba controlada, registrar una compra, revisar el mensaje de aceptación, la tabla `comprobantes_correo` y la bandeja/spam. La aceptación de Gmail no garantiza entrega.
++
++Con `COMPROBANTE_JAVA_ENABLED=true` se desactiva únicamente el correo antiguo del
++controlador de detalles para evitar el segundo mensaje y su BCC anterior. El
++nuevo correo no incluye BCC. Todos los puntos de venta deben actualizar Java
++antes de activar el cambio, pues el cliente antiguo no sube su PDF.
++
++## Endpoints
++
++- `POST /api/comprobantes/login`: `{nombre_usuario, contrasena}`. Devuelve token y datos públicos del usuario. Acepta las contraseñas actuales y bcrypt. Limita intentos por IP. Detrás del proxy de Render, revisar la configuración de `trust proxy` para que el límite use la IP real según la topología del servicio.
++- `GET /api/comprobantes/:id/correo`: devuelve `pendiente`, `enviando`, `aceptado` o `incierto`.
++- `POST /api/comprobantes/:id/correo`: `{pdf_base64}`. PDF de hasta 5 MiB; autenticación Bearer. Vendedor: solo sus propias ventas. Administrador: todas.
++
++El PDF se valida por tamaño, base64 y marcadores PDF, no se analiza ni se compara
++su contenido visual con la BD. El cliente Java oficial genera los importes y QR
++a partir de la venta; este endpoint se destina a vendedores autorizados.
++
++## Errores y reintentos
++
++Una fila por venta y una actualización condicional en PostgreSQL reservan el envío.
++Un comprobante `aceptado` no se envía otra vez. El registro sobrevive reinicios.
++Si falta configuración, correo o detalles, no se intenta enviar. Un rechazo
++confirmado permite volver a intentar desde Comprobantes y boletos. Un timeout,
++error de red o resultado desconocido queda `incierto`, sin reintento automático.
++Un proceso detenido durante el envío puede dejar `enviando`: tampoco se reenvía.
++
++Antes de desbloquear uno de esos casos, el administrador debe verificar Gmail
++Enviados y, si existe, `message_id`. Solo cuando confirme que no se envió,
++puede cambiar manualmente esa fila a `pendiente` y reintentar desde Java.
++El sistema no ofrece un botón que pueda duplicar un envío incierto. No hay cola
++automática ni garantía de entrega exactamente una vez entre Gmail y PostgreSQL.
++
++El fallo de correo nunca crea otra venta ni vuelve a descontar inventario. Java
++informa el número de venta y permite consultar/reintentar el correo sin cobrar.
++El PDF se procesa en memoria; el servidor conserva estado, hash SHA-256 y message_id,
++no guarda archivos PDF ni contraseñas OAuth en la BD.
++
++## Límites heredados del proyecto
++
++Esta integración NO convierte en atómica la compra de dos solicitudes existente.
++La validación de aforo, tarifas y transacción SQL de venta sigue en el controlador
++existente. Java advierte el ID si falla el segundo paso para evitar repetir cobros.
++Los demás endpoints CRUD heredados aún carecen de autorización y exponen datos
++sensibles de usuarios: deben protegerse antes de operar con datos reales. La nueva
++sesión protege las rutas nuevas, no sustituye esa corrección general de seguridad.
++No se migran ni reescriben las contraseñas existentes.
++
++## Verificación reproducible sin correos reales
++
++`npm test`: seis casos, incluyendo composición MIME real y Gmail simulado,
++propiedad de ventas, concurrencia, reintentos, totales, PDF y errores.
++Para la integración completa, compilar Java y `verificacion/PruebaCorreoJava.java`
++y ejecutar `node test/java-correo.cjs '<classpath Java con clases de prueba>' '<directorio temporal>'`.
++La prueba levanta Express en loopback, registra una compra ficticia y recibe un
++PDF real generado por JasperReports: tres páginas, dos boletos QR, Q250.00.
++No se accede a PostgreSQL compartido ni se envían correos reales. Las pruebas usan
++un repositorio simulado; la migración y concurrencia deben comprobarse además en
++PostgreSQL de pruebas antes de publicar en producción.
+diff --git a/Proyecto_final_progra2/controller/detalle_ventas.controller.js b/Proyecto_final_progra2/controller/detalle_ventas.controller.js
+index c2cb26c..7be4829 100644
+--- a/Proyecto_final_progra2/controller/detalle_ventas.controller.js
++++ b/Proyecto_final_progra2/controller/detalle_ventas.controller.js
+@@ -183,7 +183,7 @@ detallesAInsertar.push({
+         await ventaID.update({total_venta:Nuevototal});
+ 
+         //envia el piche correo
+-       if (clienteID && clienteID.correo) {
++       if (process.env.COMPROBANTE_JAVA_ENABLED !== 'true' && clienteID && clienteID.correo) {
+             
+             // Llamamos a tu función mail_rover pasándole el transporter
+             mail_rover(1, async (transporterConfig) => {
+diff --git a/Proyecto_final_progra2/models/index.js b/Proyecto_final_progra2/models/index.js
+index d1d4511..d64b1c7 100644
+--- a/Proyecto_final_progra2/models/index.js
++++ b/Proyecto_final_progra2/models/index.js
+@@ -44,6 +44,14 @@ db.ventas = require("./ventas.model.js")(sequelize, Sequelize);
+ db.d_ventas = require("./detalle_ventas.model.js")(sequelize, Sequelize);
+ db.cliente = require("./cliente.model.js")(sequelize, Sequelize);
+ 
++// Registro persistente de envío: una fila por venta, independiente del cobro.
++db.comprobanteCorreo = sequelize.define('comprobante_correo', {
++  id_venta: {type: Sequelize.INTEGER, primaryKey: true},
++  estado: {type: Sequelize.STRING, allowNull: false, defaultValue: 'pendiente'},
++  pdf_sha256: Sequelize.STRING,
++  message_id: Sequelize.STRING
++}, {tableName: 'comprobantes_correo'});
++
+ //foreing de detaqlle venta
+ db.ventas.hasMany(db.d_ventas,{foreignKey: "id_venta"});
+ db.d_ventas.belongsTo(db.ventas,{foreignKey: "id_venta"});
+diff --git a/Proyecto_final_progra2/service/comprobante-correo.js b/Proyecto_final_progra2/service/comprobante-correo.js
+new file mode 100644
+index 0000000..66e94d2
+--- /dev/null
++++ b/Proyecto_final_progra2/service/comprobante-correo.js
+@@ -0,0 +1,132 @@
++const crypto = require('node:crypto');
++const bcrypt = require('bcryptjs');
++const {rateLimit} = require('express-rate-limit');
++
++const MAX_PDF = 5 * 1024 * 1024;
++const emailValido = v => typeof v === 'string' && /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(v);
++const igual = (a,b) => {
++  const x=crypto.createHash('sha256').update(String(a)).digest();
++  const y=crypto.createHash('sha256').update(String(b)).digest();
++  return crypto.timingSafeEqual(x,y);
++};
++const error = (status,message) => Object.assign(new Error(message),{status});
++
++module.exports = function crearCorreo({db, env=process.env, crearTransporte=()=>require('./correo-gmail')(env)}) {
++  const secret = () => {
++    if (!env.COMPROBANTE_SESSION_SECRET || Buffer.byteLength(env.COMPROBANTE_SESSION_SECRET)<32)
++      throw error(503,'Falta configurar el servicio de comprobantes en Render.');
++    return env.COMPROBANTE_SESSION_SECRET;
++  };
++  const firma = texto => crypto.createHmac('sha256',secret()).update(texto).digest('base64url');
++  const emitir = id => {
++    const texto=Buffer.from(JSON.stringify({id,exp:Math.floor(Date.now()/1000)+8*3600})).toString('base64url');
++    return texto+'.'+firma(texto);
++  };
++  async function autenticar(req,res,next) {
++    try {
++      if (env.COMPROBANTE_JAVA_ENABLED !== 'true') throw error(503,'Envío de comprobantes pendiente de activar en Render.');
++      secret();
++      const token=(req.headers.authorization || '').replace(/^Bearer /,'');
++      const partes=token.split('.');
++      if (partes.length!==2 || token.length>600 || !igual(partes[1],firma(partes[0]))) throw error(401,'Inicia sesión nuevamente para enviar el comprobante.');
++      let dato;
++      try { dato=JSON.parse(Buffer.from(partes[0],'base64url')); } catch {throw error(401,'Sesión inválida.');}
++      if (!Number.isSafeInteger(dato.id) || !Number.isFinite(dato.exp) || dato.exp<=Date.now()/1000) throw error(401,'La sesión venció. Inicia sesión nuevamente.');
++      const usuario=await db.usuario.findByPk(dato.id);
++      if (!usuario || usuario.status===false || !['administrador','admin','vendedor'].includes(String(usuario.rol).trim().toLowerCase())) throw error(403,'Usuario sin autorización.');
++      req.usuarioCorreo=usuario; next();
++    } catch(e) { responderError(res,e); }
++  }
++  function responderError(res,e) {
++    res.status(e.status || 503).json({message:e.status ? e.message : 'No se pudo procesar el comprobante. La venta permanece registrada.'});
++  }
++  async function datos(req) {
++    const id=Number(req.params.id);
++    if (!Number.isSafeInteger(id) || id<1) throw error(400,'Número de venta inválido.');
++    const venta=await db.ventas.findByPk(id);
++    if (!venta) throw error(404,'Venta no encontrada.');
++    const rol=String(req.usuarioCorreo.rol).trim().toLowerCase();
++    if (rol==='vendedor' && Number(venta.id_vendedor)!==Number(req.usuarioCorreo.id_usuario)) throw error(403,'Solo puedes enviar tus propias ventas.');
++    return {id,venta};
++  }
++  async function clienteVenta(id,venta) {
++    const detalles=await db.d_ventas.findAll({where:{id_venta:id}});
++    if (!detalles.length) throw error(409,'La venta no tiene detalles. Revisa la compra sin volver a cobrar.');
++    const clientes=new Set(detalles.map(d=>Number(d.id_cliente)));
++    if (clientes.size!==1 || !Number.isSafeInteger([...clientes][0])) throw error(409,'La venta no tiene un cliente único.');
++    const centavos = v => {
++      const n=Number(v);
++      if(v==null || !Number.isFinite(n) || n<0) throw error(409,'Importes de venta inválidos.');
++      return Math.round(n*100);
++    };
++    let total=0;
++    for(const d of detalles) {
++      if(Number(d.cantidad)!==1 || centavos(d.precio_unitario)!==centavos(d.subtotal)) throw error(409,'Detalle de venta inconsistente.');
++      total+=centavos(d.subtotal);
++    }
++    if(total!==centavos(venta.total_venta)) throw error(409,'El total no coincide con los detalles de la venta.');
++    const cliente=await db.cliente.findByPk([...clientes][0]);
++    if (!cliente || !emailValido(cliente.correo)) throw error(409,'El cliente no tiene un correo válido. Corrígelo y reintenta el envío.');
++    return cliente;
++  }
++  function registrar(app) {
++    const loginLimit=rateLimit({windowMs:15*60*1000,limit:20,standardHeaders:true,legacyHeaders:false});
++    app.post('/api/comprobantes/login',loginLimit,async(req,res)=> {
++      res.set('Cache-Control','no-store');
++      try {
++        if(env.COMPROBANTE_JAVA_ENABLED!=='true') throw error(503,'Servicio pendiente de activar en Render.');
++        secret();
++        const {nombre_usuario,contrasena}=req.body || {};
++        if(typeof nombre_usuario!=='string' || typeof contrasena!=='string' || nombre_usuario.length>50 || contrasena.length>200 || !contrasena) throw error(400,'Credenciales inválidas.');
++        const u=await db.usuario.findOne({where:{nombre_usuario}});
++        const hash=String(u?.contrasena_hash || '');
++        // Compatibilidad con la BD actual; acepta bcrypt cuando migren sus contraseñas.
++        const valida=hash.startsWith('$2') ? await bcrypt.compare(contrasena,hash) : igual(contrasena,hash);
++        if(!u || !valida || u.status===false) throw error(401,'Usuario o contraseña incorrectos.');
++        if(!['administrador','admin','vendedor'].includes(String(u.rol).trim().toLowerCase())) throw error(403,'Usuario sin autorización.');
++        res.json({token:emitir(Number(u.id_usuario)),usuario:{id_usuario:u.id_usuario,nombre_usuario:u.nombre_usuario,nombre_completo:u.nombre_completo,rol:u.rol,status:u.status}});
++      } catch(e) {responderError(res,e);}
++    });
++    app.get('/api/comprobantes/:id/correo',autenticar,async(req,res)=> {
++      res.set('Cache-Control','no-store');
++      try {
++        const {id}=await datos(req);
++        const registro=await db.comprobanteCorreo.findByPk(id);
++        res.json({estado:registro?.estado || 'pendiente'});
++      } catch(e) {responderError(res,e);}
++    });
++    app.post('/api/comprobantes/:id/correo',autenticar,async(req,res)=> {
++      try {
++        const {id,venta}=await datos(req);
++        const cliente=await clienteVenta(id,venta);
++        const previo=await db.comprobanteCorreo.findByPk(id);
++        if(previo?.estado==='aceptado') return res.json({estado:'aceptado',reutilizado:true});
++        if(previo && previo.estado!=='pendiente') throw error(409,'Envío en proceso o resultado incierto. Revisa el registro de Gmail antes de reenviar.');
++        const base64=req.body?.pdf_base64;
++        if(typeof base64!=='string' || base64.length>Math.ceil(MAX_PDF/3)*4 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(base64)) throw error(400,'Adjunta un PDF válido de hasta 5 MiB.');
++        const pdf=Buffer.from(base64,'base64');
++        if(pdf.length<10 || pdf.length>MAX_PDF || pdf.subarray(0,5).toString()!=='%PDF-' || !pdf.subarray(-1024).includes(Buffer.from('%%EOF'))) throw error(400,'El archivo no es un PDF válido.');
++        if(!emailValido(env.MAIL_FROM)) throw error(503,'Falta configurar MAIL_FROM con el correo remitente.');
++        const transporte=crearTransporte(); // Valida la configuración antes de reservar el envío.
++        await db.comprobanteCorreo.findOrCreate({where:{id_venta:id},defaults:{estado:'pendiente'}});
++        const [reservado]=await db.comprobanteCorreo.update({estado:'enviando',pdf_sha256:crypto.createHash('sha256').update(pdf).digest('hex')},{where:{id_venta:id,estado:'pendiente'}});
++        if(reservado!==1) throw error(409,'El comprobante ya está enviado o en proceso. Consulta su estado.');
++        try {
++          const resultado=await transporte.sendMail({from:env.MAIL_FROM,to:cliente.correo,
++            subject:'Comprobante de venta #'+id,
++            text:'Tu compra #'+id+' está registrada. Adjuntamos el comprobante y los boletos con QR. Documento académico, no fiscal.',
++            attachments:[{filename:'comprobante-venta-'+id+'.pdf',content:pdf,contentType:'application/pdf'}]});
++          if(!resultado.accepted?.length) throw new Error('Correo no aceptado');
++          await db.comprobanteCorreo.update({estado:'aceptado',message_id:String(resultado.messageId || '').slice(0,255)},{where:{id_venta:id,estado:'enviando'}});
++          return res.json({estado:'aceptado'});
++        } catch(e) {
++          // Un timeout puede ocurrir DESPUÉS de la aceptación: no reenviar automáticamente.
++          const rechazado=[400,401,403,404,429].includes(Number(e.response?.status)) || e.code==='EENVELOPE';
++          await db.comprobanteCorreo.update({estado:rechazado?'pendiente':'incierto'},{where:{id_venta:id,estado:'enviando'}});
++          throw error(503,rechazado ? 'El correo fue rechazado. Corrige la configuración y reintenta solo el envío.' : 'No se pudo confirmar el envío. Revisa Gmail antes de reenviar; la venta sigue registrada.');
++        }
++      } catch(e) {responderError(res,e);}
++    });
++  }
++  return {registrar};
++};
+diff --git a/Proyecto_final_progra2/service/correo-gmail.js b/Proyecto_final_progra2/service/correo-gmail.js
+new file mode 100644
+index 0000000..e3a55d7
+--- /dev/null
++++ b/Proyecto_final_progra2/service/correo-gmail.js
+@@ -0,0 +1,19 @@
++// Archivo nuevo: Proyecto_final_progra2/service/correo-gmail.js
++const nodemailer = require('nodemailer');
++const {google} = require('googleapis');
++module.exports = function crearCorreoGmail(env = process.env) {
++  for (const nombre of ['GOOGLE_CLIENT_ID','GOOGLE_CLIENT_SECRET','GOOGLE_REFRESH_TOKEN'])
++    if (!env[nombre]) throw new Error('Falta configurar ' + nombre + ' en Render.');
++  const oauth = new google.auth.OAuth2(env.GOOGLE_CLIENT_ID,env.GOOGLE_CLIENT_SECRET);
++  oauth.setCredentials({refresh_token:env.GOOGLE_REFRESH_TOKEN});
++  const gmail = google.gmail({version:'v1',auth:oauth});
++  const compositor = nodemailer.createTransport({streamTransport:true,buffer:true,newline:'unix'});
++  return {
++    async sendMail(mensaje) {
++      const preparado = await compositor.sendMail(mensaje);
++      const respuesta = await gmail.users.messages.send({userId:'me',requestBody:{raw:preparado.message.toString('base64url')}},{timeout:45000});
++      if (!respuesta.data.id) throw new Error('Gmail no confirmó la aceptación del mensaje.');
++      return {accepted:[mensaje.to],messageId:respuesta.data.id};
++    }
++  };
++};
+diff --git a/package-lock.json b/package-lock.json
+index 5cca9b8..ef280e4 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -9,9 +9,11 @@
+       "version": "1.0.0",
+       "license": "ISC",
+       "dependencies": {
++        "bcryptjs": "^3.0.3",
+         "cors": "^2.8.6",
+         "dotenv": "^18.0.8",
+         "express": "^5.2.1",
++        "express-rate-limit": "^8.2.1",
+         "googleapis": "^186.0.0",
+         "nodemailer": "^10.1.7",
+         "pg": "^8.23.0",
+@@ -610,6 +612,15 @@
+       ],
+       "license": "MIT"
+     },
++    "node_modules/bcryptjs": {
++      "version": "3.0.3",
++      "resolved": "https://registry.npmjs.org/bcryptjs/-/bcryptjs-3.0.3.tgz",
++      "integrity": "sha512-GlF5wPWnSa/X5LKM1o0wz0suXIINz1iHRLvTS+sLyi7XPbe5ycmYI3DlZqVGZZtDgl4DmasFg7gOB3JYbphV5g==",
++      "license": "BSD-3-Clause",
++      "bin": {
++        "bcrypt": "bin/bcrypt"
++      }
++    },
+     "node_modules/bignumber.js": {
+       "version": "9.3.1",
+       "resolved": "https://registry.npmjs.org/bignumber.js/-/bignumber.js-9.3.1.tgz",
+@@ -1210,6 +1221,24 @@
+         "url": "https://opencollective.com/express"
+       }
+     },
++    "node_modules/express-rate-limit": {
++      "version": "8.2.1",
++      "resolved": "https://registry.npmjs.org/express-rate-limit/-/express-rate-limit-8.2.1.tgz",
++      "integrity": "sha512-PCZEIEIxqwhzw4KF0n7QF4QqruVTcF73O5kFKUnGOyjbCCgizBBiFaYpd/fnBLUMPw/BWw9OsiN7GgrNYr7j6g==",
++      "license": "MIT",
++      "dependencies": {
++        "ip-address": "10.0.1"
++      },
++      "engines": {
++        "node": ">= 16"
++      },
++      "funding": {
++        "url": "https://github.com/sponsors/express-rate-limit"
++      },
++      "peerDependencies": {
++        "express": ">= 4.11"
++      }
++    },
+     "node_modules/extend": {
+       "version": "3.0.2",
+       "resolved": "https://registry.npmjs.org/extend/-/extend-3.0.2.tgz",
+@@ -1697,6 +1726,15 @@
+       "integrity": "sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==",
+       "license": "ISC"
+     },
++    "node_modules/ip-address": {
++      "version": "10.0.1",
++      "resolved": "https://registry.npmjs.org/ip-address/-/ip-address-10.0.1.tgz",
++      "integrity": "sha512-NWv9YLW4PoW2B7xtzaS3NCot75m6nK7Icdv0o3lfMceJVRfSoQwqD4wEH5rLwoKJwUiZ/rfpiVBhnaF0FK4HoA==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 12"
++      }
++    },
+     "node_modules/ipaddr.js": {
+       "version": "1.9.1",
+       "resolved": "https://registry.npmjs.org/ipaddr.js/-/ipaddr.js-1.9.1.tgz",
+diff --git a/package.json b/package.json
+index e59c73f..197471c 100644
+--- a/package.json
++++ b/package.json
+@@ -6,14 +6,16 @@
+   "author": "",
+   "type": "commonjs",
+   "main": "server.js",
+- "scripts": {
+-   "start": "node server.js",
+-   "test": "echo \"Error: no test specified\" && exit 1"
+- },
++  "scripts": {
++    "start": "node server.js",
++    "test": "node --test test/*.test.cjs"
++  },
+   "dependencies": {
++    "bcryptjs": "^3.0.3",
+     "cors": "^2.8.6",
+     "dotenv": "^18.0.8",
+     "express": "^5.2.1",
++    "express-rate-limit": "^8.2.1",
+     "googleapis": "^186.0.0",
+     "nodemailer": "^10.1.7",
+     "pg": "^8.23.0",
+diff --git a/server.js b/server.js
+index 12939ae..efab2e8 100644
+--- a/server.js
++++ b/server.js
+@@ -12,13 +12,15 @@ var corsOptions = {
+ app.use(cors(corsOptions));
+ 
+ 
++// El PDF viaja en base64: máximo 5 MiB de archivo (7 MiB de JSON).
++app.use('/api/comprobantes', express.json({limit: '7mb'}));
+ app.use(bodyParser.json());
+ 
+ 
+ app.use(bodyParser.urlencoded({ extended: true }));
+ 
+ const db = require("./Proyecto_final_progra2/models");
+-db.sequelize.sync();
++const tablasListas = db.sequelize.sync();
+ 
+ app.get("/", (req, res) => {
+   res.json({ message: "UMG Web Application" });
+@@ -33,7 +35,8 @@ require("./Proyecto_final_progra2/route/localidades.route")(app);
+ require("./Proyecto_final_progra2/route/usuario.route")(app);
+ require("./Proyecto_final_progra2/route/ventas.route")(app);
+ require("./Proyecto_final_progra2/route/cliente.route")(app);
++require('./Proyecto_final_progra2/service/comprobante-correo')({db}).registrar(app);
+ const PORT = process.env.PORT || 8081;
+-app.listen(PORT, () => {
++tablasListas.then(() => app.listen(PORT, () => {
+   console.log(`Server is running on port ${PORT}.`);
+-});
+\ No newline at end of file
++})).catch(() => { console.error('No se pudieron inicializar las tablas.'); process.exitCode = 1; });
+\ No newline at end of file
+diff --git a/test/comprobante-correo.test.cjs b/test/comprobante-correo.test.cjs
+new file mode 100644
+index 0000000..c7d0466
+--- /dev/null
++++ b/test/comprobante-correo.test.cjs
+@@ -0,0 +1,63 @@
++const {test}=require('node:test');
++const assert=require('node:assert/strict');
++const express=require('express');
++const bcrypt=require('bcryptjs');
++const crear=require('../Proyecto_final_progra2/service/comprobante-correo');
++
++const fixture=require('./fixture.cjs');
++const pdf=Buffer.from('%PDF-1.4\nPrueba de transporte; PDF real en prueba Java.\n%%EOF\n');
++async function servidor(f,run) {
++  const s=f.app().listen(0,'127.0.0.1');await new Promise(r=>s.once('listening',r));
++  const base='http://127.0.0.1:'+s.address().port;
++  const req=async(path,method='GET',body,token)=>{
++    const r=await fetch(base+'/api/comprobantes'+path,{method,headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},body:body===undefined?undefined:JSON.stringify(body)});
++    return {status:r.status,body:await r.json()};
++  };
++  try {await run(req);}finally{await new Promise(r=>s.close(r));}
++}
++async function token(req) {const r=await req('/login','POST',{nombre_usuario:'vendedor',contrasena:'clave-prueba'});assert.equal(r.status,200);assert(!JSON.stringify(r.body).includes('contrasena'));return r.body.token;}
++const enviar=(req,t,extra={})=>req('/8/correo','POST',{pdf_base64:pdf.toString('base64'),...extra},t);
++
++test('autenticación, pertenencia, adjunto y destinatario desde BD; idempotencia persistente',async()=>{
++ const f=fixture();
++ await servidor(f,async req=>{
++  assert.equal((await enviar(req)).status,401);
++  assert.equal((await req('/login','POST',{nombre_usuario:'vendedor',contrasena:'mala'})).status,401);
++  f.usuario.contrasena_hash=await bcrypt.hash('clave-prueba',4);
++  const t=await token(req);
++  assert.equal((await enviar(req,t+'x')).status,401);
++  f.venta.id_vendedor=99;assert.equal((await enviar(req,t)).status,403);f.venta.id_vendedor=2;
++  assert.equal((await enviar(req,t,{pdf_base64:'bm8='})).status,400);
++  assert.equal((await enviar(req,t,{pdf_base64:'!!!!'})).status,400);
++  const r=await enviar(req,t,{to:'atacante@example.invalid'});assert.equal(r.status,200);
++  assert.equal(f.ultimo.to,'cliente@example.invalid');assert.deepEqual(f.ultimo.attachments[0].content,pdf);assert(!f.ultimo.bcc);
++  assert.equal((await enviar(req,t)).body.reutilizado,true);assert.equal(f.envios,1);
++  assert.equal((await req('/8/correo','GET',undefined,t)).body.estado,'aceptado');
++ });
++ await servidor(f,async req=>{assert.equal((await enviar(req,await token(req))).body.reutilizado,true);assert.equal(f.envios,1);});
++});
++test('dos solicitudes simultáneas reservan un solo envío',async()=>{
++ const f=fixture();let terminar;f.transportar=m=>new Promise(r=>{terminar=()=>r({accepted:[m.to],messageId:'uno'});});
++ await servidor(f,async req=>{
++  const t=await token(req);const primera=enviar(req,t);
++  while(!terminar)await new Promise(r=>setTimeout(r,5));
++  try {assert.equal((await enviar(req,t)).status,409);assert.equal(f.envios,1);}finally{terminar();}
++  assert.equal((await primera).status,200);
++ });
++});
++test('venta incompleta, total inconsistente y correo inválido nunca envían',async()=>{
++ const f=fixture();await servidor(f,async req=>{const t=await token(req);
++  f.venta.total_venta=999;assert.equal((await enviar(req,t)).status,409);f.venta.total_venta=250;
++  f.cliente.correo='invalido';assert.equal((await enviar(req,t)).status,409);f.cliente.correo='cliente@example.invalid';
++  f.detalles=[];assert.equal((await enviar(req,t)).status,409);assert.equal(f.envios,0);
++ });
++});
++test('timeout conserva estado incierto y bloquea duplicados; rechazo confirmado permite reintentar',async()=>{
++ const f=fixture();f.transportar=async()=>{throw new Error('timeout simulado');};
++ await servidor(f,async req=>{const t=await token(req);assert.equal((await enviar(req,t)).status,503);assert.equal(f.estados.get(8).estado,'incierto');assert.equal((await enviar(req,t)).status,409);assert.equal(f.envios,1);});
++ const g=fixture();g.transportar=async()=>{throw Object.assign(new Error('rechazo'),{response:{status:429}});};
++ await servidor(g,async req=>{const t=await token(req);assert.equal((await enviar(req,t)).status,503);assert.equal(g.estados.get(8).estado,'pendiente');g.transportar=async m=>({accepted:[m.to],messageId:'reintento'});assert.equal((await enviar(req,t)).status,200);assert.equal(g.envios,2);});
++});
++test('configuración pendiente no envía ni altera ventas',async()=>{
++ const f=fixture();await servidor(f,async req=>{const t=await token(req);f.env.MAIL_FROM='';assert.equal((await enviar(req,t)).status,503);assert.equal(f.envios,0);assert.equal(f.estados.size,0);f.env.COMPROBANTE_JAVA_ENABLED='false';assert.equal((await enviar(req,t)).status,503);});
++});
+diff --git a/test/correo-gmail.test.cjs b/test/correo-gmail.test.cjs
+new file mode 100644
+index 0000000..f822e7c
+--- /dev/null
++++ b/test/correo-gmail.test.cjs
+@@ -0,0 +1,23 @@
++const assert = require('node:assert/strict');
++const {google} = require('googleapis');
++const original = google.gmail;
++let requests = 0;
++google.gmail = () => ({users:{messages:{send:async mensaje => {
++  requests++;
++  assert.equal(mensaje.userId,'me');
++  const mime=Buffer.from(mensaje.requestBody.raw,'base64url').toString('utf8');
++  assert(mime.includes('cliente@example.invalid'));
++  assert(mime.includes('comprobante.pdf'));
++  assert(mime.includes('application/pdf'));
++  return {data:{id:'simulacion-sin-envio'}};
++}}}});
++(async()=>{
++ try {
++  const crear=require('../Proyecto_final_progra2/service/correo-gmail');
++  assert.throws(()=>crear({}),/GOOGLE_CLIENT_ID/);
++  const transporte=crear({GOOGLE_CLIENT_ID:'test-only',GOOGLE_CLIENT_SECRET:'test-only',GOOGLE_REFRESH_TOKEN:'test-only'});
++  const r=await transporte.sendMail({from:'remitente@example.invalid',to:'cliente@example.invalid',subject:'Prueba local',text:'Prueba',attachments:[{filename:'comprobante.pdf',content:Buffer.from('%PDF-simulado'),contentType:'application/pdf'}]});
++  assert.equal(requests,1);assert.equal(r.messageId,'simulacion-sin-envio');
++  console.log('PASS: real MIME composition and mocked Gmail HTTPS API, PDF attachment, no real mail.');
++ } finally { google.gmail=original; }
++})().catch(e=>{console.error(e);process.exitCode=1;});
+diff --git a/test/fixture.cjs b/test/fixture.cjs
+new file mode 100644
+index 0000000..306ae19
+--- /dev/null
++++ b/test/fixture.cjs
+@@ -0,0 +1,23 @@
++const express=require('express');
++const crear=require('../Proyecto_final_progra2/service/comprobante-correo');
++function fixture() {
++  const estados=new Map(); let envios=0, ultimo;
++  const usuario={id_usuario:2,nombre_usuario:'vendedor',contrasena_hash:'clave-prueba',nombre_completo:'Prueba',rol:'vendedor',status:true};
++  const venta={id_venta:8,id_vendedor:2,total_venta:250};
++  let detalles=[{id_venta:8,id_cliente:3,cantidad:1,precio_unitario:100,subtotal:100},{id_venta:8,id_cliente:3,cantidad:1,precio_unitario:150,subtotal:150}];
++  const cliente={correo:'cliente@example.invalid'};
++  const db={usuario:{findOne:async()=>usuario,findByPk:async()=>usuario},ventas:{findByPk:async id=>id===8?venta:null},
++    d_ventas:{findAll:async()=>detalles},cliente:{findByPk:async()=>cliente},comprobanteCorreo:{
++      findByPk:async id=>estados.get(id),
++      findOrCreate:async({where,defaults})=>{if(!estados.has(where.id_venta))estados.set(where.id_venta,{...defaults});return [estados.get(where.id_venta)];},
++      update:async(values,{where})=>{const row=estados.get(where.id_venta);if(!row || row.estado!==where.estado)return [0];Object.assign(row,values);return [1];}
++    }};
++  const env={COMPROBANTE_JAVA_ENABLED:'true',COMPROBANTE_SESSION_SECRET:'s'.repeat(32),MAIL_FROM:'sender@example.invalid'};
++  let transportar=async m=>({accepted:[m.to],messageId:'gmail-prueba'});
++  const crearTransporte=()=>({sendMail:async m=>{envios++;ultimo=m;return transportar(m);}});
++  function app() {const a=express();a.use(express.json({limit:'7mb'}));crear({db,env,crearTransporte}).registrar(a);return a;}
++  return {app,db,env,usuario,venta,cliente,estados,get envios(){return envios;},get ultimo(){return ultimo;},
++    set detalles(v){detalles=v;},set transportar(v){transportar=v;}};
++}
++
++module.exports=fixture;
+diff --git a/test/java-correo.cjs b/test/java-correo.cjs
+new file mode 100644
+index 0000000..a64c40e
+--- /dev/null
++++ b/test/java-correo.cjs
+@@ -0,0 +1,37 @@
++// node test/java-correo.cjs <classpath de Java> <directorio de salida temporal>
++const assert=require('node:assert/strict');
++const fs=require('node:fs');
++const path=require('node:path');
++const {spawn}=require('node:child_process');
++const fixture=require('./fixture.cjs');
++const f=fixture();
++let ventas=0, detalles=0;
++const app=f.app();
++const lineas=[{id_venta:8,id_detalle:21,id_inventario:700,id_cliente:3,cantidad:1,precio_unitario:100,subtotal:100},
++ {id_venta:8,id_detalle:22,id_inventario:701,id_cliente:3,cantidad:1,precio_unitario:150,subtotal:150}];
++f.db.d_ventas.findAll=async()=>lineas;
++f.transportar=async mensaje=>{
++ const pdf=mensaje.attachments[0].content;
++ assert(pdf.subarray(0,5).equals(Buffer.from('%PDF-')));
++ assert(pdf.subarray(-1024).includes(Buffer.from('%%EOF')));
++ fs.writeFileSync(path.join(process.argv[3],'comprobante-java-recibido.pdf'),pdf);
++ return {accepted:[mensaje.to],messageId:'simulado-no-correo-real'};
++};
++app.get('/api/ventas/8',(_q,r)=>r.json({...f.venta,fecha_venta:'2026-10-26T12:00:00Z'}));
++app.post('/api/ventas/create',(_q,r)=>{ventas++;r.status(201).json({...f.venta,total_venta:0});});
++app.post('/api/detalle_ventas/create',(q,r)=>{assert.deepEqual(q.body.id_inventario,[700,701]);detalles++;r.status(201).json(lineas);});
++app.get('/api/detalle_ventas',(_q,r)=>r.json(lineas));
++app.get('/api/inventario_boletos/:id',(q,r)=>r.json({id_concierto:1,id_localidad:Number(q.params.id)}));
++app.get('/api/concierto/1',(_q,r)=>r.json({titulo_evento:'Concierto de prueba',fecha_concierto:'2026-12-06T00:00:00Z',recinto:'Recinto de prueba'}));
++app.get('/api/localidades/:id',(q,r)=>r.json({nombre:'General',asiento:'A-'+q.params.id}));
++app.get('/api/cliente/3',(_q,r)=>r.json({nombre:'Cliente',apellido:'Prueba',correo:'cliente@example.invalid',telefono:'00000000'}));
++const server=app.listen(0,'127.0.0.1',()=>{
++ const java=process.env.JAVA_HOME ? path.join(process.env.JAVA_HOME,'bin','java'):'java';
++ const child=spawn(java,['-Djava.awt.headless=true','-Dapi.url=http://127.0.0.1:'+server.address().port+'/api','-cp',process.argv[2],'PruebaCorreoJava'],{stdio:'inherit'});
++ child.on('error',e=>{console.error(e);process.exitCode=1;server.close();});
++ child.on('exit',code=>{
++  try{assert.equal(code,0);assert.equal(ventas,1);assert.equal(detalles,1);assert.equal(f.envios,1);console.log('PASS integración Java → Express → transporte simulado: una compra y un correo con PDF real.');}
++  catch(e){console.error(e);process.exitCode=1;}
++  finally{server.close();}
++ });
++});
+-- 
+2.52.0
+

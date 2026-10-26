@@ -336,6 +336,8 @@ public class PuntoVentaView extends HBox implements Recargable {
         lblTotal.setText(Ui.dinero(total()));
     }
 
+    record VentaConCorreo(ventas venta, String correo) {}
+
     private void cobrar() {
         if (carrito.isEmpty()) return;
         if (cbCliente.getValue() == null) {
@@ -351,11 +353,23 @@ public class PuntoVentaView extends HBox implements Recargable {
                 .map(l -> new checkoutservice.Item(l.inv().getId_inventario(), l.cantidad())).toList();
 
         cobrando.set(true);   // evita doble clic = doble venta
-        Async.run(() -> new checkoutservice().registrarVenta(idVendedor, idCliente, items),
-                (ventas v) -> {
+        Integer vendedorPermitido = Sesion.esAdmin() ? null : idVendedor;
+        Async.run(() -> {
+                    ventas venta = new checkoutservice().registrarVenta(idVendedor, idCliente, items);
+                    String correo;
+                    try {
+                        correo = new com.umg.api.service.ComprobanteCorreoService().enviar(venta.getId_venta(), vendedorPermitido);
+                    } catch (Exception ex) {
+                        correo = "Correo sin confirmar: " + ex.getMessage()
+                                + "\nRevisa Comprobantes y boletos. No repitas la compra.";
+                    }
+                    return new VentaConCorreo(venta, correo);
+                },
+                (VentaConCorreo resultado) -> {
+                    ventas v = resultado.venta();
                     cobrando.set(false);
                     carrito.clear();
-                    Ui.info("Venta #" + v.getId_venta() + " registrada.\nTotal cobrado: " + Ui.dinero(v.getTotal_venta()));
+                    Ui.info("Venta #" + v.getId_venta() + " registrada.\nTotal cobrado: " + Ui.dinero(v.getTotal_venta()) + "\n" + resultado.correo());
                     recargar();
                 },
                 msg -> {

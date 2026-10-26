@@ -38,6 +38,9 @@ public final class ApiConfig {
      */
     public static CloseableHttpClient crearCliente() {
         return HttpClients.custom()
+                .setDefaultRequestConfig(org.apache.hc.client5.http.config.RequestConfig.custom()
+                    .setConnectionRequestTimeout(org.apache.hc.core5.util.Timeout.ofSeconds(15))
+                    .setResponseTimeout(org.apache.hc.core5.util.Timeout.ofSeconds(60)).build())
                 .addRequestInterceptorFirst((request, entity, context) -> {
                     String token = Sesion.token();
                     if (token != null && !request.containsHeader(HttpHeaders.AUTHORIZATION)) {

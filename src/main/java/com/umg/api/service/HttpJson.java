@@ -20,6 +20,10 @@ final class HttpJson {
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     private HttpJson() {}
+    static final class ErrorHttp extends Exception {
+        final int codigo;
+        ErrorHttp(int codigo, String mensaje) { super(mensaje); this.codigo = codigo; }
+    }
 
     static <T> T post(String url, Object cuerpo, Class<T> tipo) throws Exception {
         try (CloseableHttpClient client = ApiConfig.crearCliente()) {
@@ -35,7 +39,7 @@ final class HttpJson {
                 if (code == 200 || code == 201) {
                     return MAPPER.readValue(body, tipo);
                 }
-                throw new Exception(mensajeDeError(code, body));
+                throw new ErrorHttp(code, mensajeDeError(code, body));
             }
         }
     }
@@ -44,8 +48,9 @@ final class HttpJson {
         try (var cliente = ApiConfig.crearCliente();
              var respuesta = cliente.execute(new org.apache.hc.client5.http.classic.methods.HttpGet(
                      ApiConfig.url(ruta.startsWith("/") ? ruta.substring(1) : ruta)))) {
-            if (respuesta.getCode() != 200) throw new Exception(mensajeDeError(respuesta.getCode(), ""));
-            return MAPPER.readTree(EntityUtils.toString(respuesta.getEntity()));
+            String cuerpo = respuesta.getEntity() == null ? "" : EntityUtils.toString(respuesta.getEntity());
+            if (respuesta.getCode() != 200) throw new ErrorHttp(respuesta.getCode(), mensajeDeError(respuesta.getCode(), cuerpo));
+            return MAPPER.readTree(cuerpo);
         }
     }
 

@@ -24,6 +24,12 @@ public class checkoutservice {
             throw new Exception("Selecciona un cliente para la venta.");
         }
 
+        if (items == null || items.isEmpty()) throw new Exception("Selecciona al menos un boleto.");
+        java.util.Set<Integer> unicos = new java.util.HashSet<>();
+        for (Item item : items) {
+            if (item.id_inventario() < 1 || item.cantidad() != 1 || !unicos.add(item.id_inventario()))
+                throw new Exception("Selecciona asientos válidos y sin repetir; esta API vende uno por detalle.");
+        }
         // 1. crear la venta
         ventas nueva = new ventas(0, idVendedor, Instant.now().toString(), 0);
         ventas creada = new ventasservice().createVentas(nueva);
@@ -37,14 +43,26 @@ public class checkoutservice {
         cuerpo.put("id_venta", creada.getId_venta());
         cuerpo.put("id_cliente", idCliente);
         cuerpo.put("id_inventario", ids);
-        HttpJson.post(ApiConfig.url("detalle_ventas") + "/create", cuerpo, Object.class);
-
-        // la API ya actualizó el total, se vuelve a pedir la venta para mostrarlo
-        for (ventas v : new ventasservice().getVentas()) {
-            if (v.getId_venta() == creada.getId_venta()) {
-                return v;
-            }
+        final com.fasterxml.jackson.databind.JsonNode detalles;
+        try {
+            detalles = HttpJson.post(ApiConfig.url("detalle_ventas") + "/create", cuerpo,
+                    com.fasterxml.jackson.databind.JsonNode.class);
+        } catch (Exception ex) {
+            throw new Exception("Se creó la venta #" + creada.getId_venta()
+                    + ", pero no se confirmó el guardado de boletos. Revisa esa venta antes de repetir la compra. "
+                    + ex.getMessage(), ex);
         }
+        // La respuesta contiene los importes persistidos; evita que una consulta posterior
+        // fallida haga aparecer como fallida una compra que sí se guardó.
+        if (detalles == null || !detalles.isArray() || detalles.size() != items.size())
+            throw new Exception("Venta #" + creada.getId_venta() + ": respuesta de detalles incompleta. No repitas la compra; revísala.");
+        java.math.BigDecimal total = java.math.BigDecimal.ZERO;
+        for (var detalle : detalles) {
+            if (detalle.path("id_venta").asInt() != creada.getId_venta() || !detalle.hasNonNull("subtotal"))
+                throw new Exception("Venta #" + creada.getId_venta() + ": detalles inesperados. Revisa la compra sin repetirla.");
+            total = total.add(new java.math.BigDecimal(detalle.get("subtotal").asText()));
+        }
+        creada.setTotal_venta(total.floatValue());
         return creada;
     }
 }

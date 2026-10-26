@@ -47,7 +47,8 @@ public final class BoletosPdf {
         List<Map<String,?>> datos=new ArrayList<>(filas);
         return JasperFillManager.fillReport(reporte,parametros,new JRMapCollectionDataSource(datos));
     }
-    public static void exportar(ComprobanteService.Documento venta,Path destino)throws Exception {
+    /** Un mismo PDF de JasperReports para guardar y para adjuntar al correo. */
+    public static byte[] generar(ComprobanteService.Documento venta)throws Exception {
         if(venta.lineas().isEmpty())throw new IllegalArgumentException("La venta no contiene boletos.");
         BigDecimal suma=BigDecimal.ZERO;
         int cantidadTotal=0;
@@ -76,9 +77,13 @@ public final class BoletosPdf {
         JasperPrint documento=llenar(comprobante(),p,venta.lineas());
         JasperPrint boletos=llenar(boleto(),new HashMap<>(),tickets);
         for(var pagina:boletos.getPages())documento.addPage(pagina);
+        return JasperExportManager.exportReportToPdf(documento);
+    }
+    public static void exportar(ComprobanteService.Documento venta,Path destino)throws Exception {
+        byte[] pdf = generar(venta);
         Path archivo=destino.toAbsolutePath();
         Path temporal=Files.createTempFile(archivo.getParent(),".comprobante-",".pdf");
-        try {JasperExportManager.exportReportToPdfFile(documento,temporal.toString());
+        try {Files.write(temporal,pdf);
             Files.move(temporal,archivo,StandardCopyOption.REPLACE_EXISTING);
         }finally{Files.deleteIfExists(temporal);}
     }
