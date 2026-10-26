@@ -10,6 +10,15 @@ public class PruebaValidaciones {
         Validaciones.telefono("50212345678");
         for(String s:new String[]{"NaN","Infinity","-1","0","1e3","12.345"})rechaza(()->Validaciones.precio(s));
         Validaciones.precio("12,50");Validaciones.nit("CF");Validaciones.nit("1234567-K");
+        try {
+            var mapper=new com.fasterxml.jackson.databind.ObjectMapper();
+            String desglose=com.umg.api.service.Tarifas.desglose(mapper.readTree("{\"precio_base\":1000,\"recargo_porcentaje\":45,\"recargo_monto\":450,\"precio_unitario\":1450}"));
+            if(!desglose.contains("45% Q450.00"))throw new AssertionError(desglose);
+            String antiguo=com.umg.api.service.Tarifas.desglose(mapper.readTree("{\"precio_unitario\":1450}"));
+            if(!antiguo.contains("no registrado"))throw new AssertionError(antiguo);
+            var roto=mapper.readTree("{\"precio_base\":1000,\"recargo_porcentaje\":45,\"recargo_monto\":400,\"precio_unitario\":1450}");
+            rechaza(()->com.umg.api.service.Tarifas.desglose(roto));
+        } catch (java.io.IOException ex) {throw new AssertionError(ex);}
         System.out.println("PASS: nombres, correo obligatorio, teléfono, precios y NIT.");
     }
 }

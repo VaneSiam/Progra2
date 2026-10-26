@@ -17,7 +17,7 @@ requiere revisar Gmail antes de desbloquearlo.
 La integración completa para el repositorio de API está incluida en
 `backend-para-integrar/java-correo/0001-correo-pdf-java.patch`, basada en el commit
 `28381a89419bafc40190613e201725ca1989e9e2`. En un checkout limpio de esa versión,
-aplicar con `git am /ruta/0001-correo-pdf-java.patch`, luego `npm ci` y `npm test`. El archivo actualizado contiene dos commits: correo y validaciones.
+aplicar con `git am /ruta/0001-correo-pdf-java.patch`, luego `npm ci` y `npm test`. El archivo actualizado contiene tres commits: correo, validaciones y desglose histórico de recargos.
 Si se publica la rama de API que contiene el mismo commit, NO aplicar el parche
 otra vez. No mezclar este parche con la integración anterior que genera PDF en Node.
 
@@ -46,6 +46,24 @@ Con las dependencias Maven y `target/classes` en el classpath, compilar
 del backend pasando ese classpath y un directorio temporal. La prueba usa Express,
 JasperReports y lectura de QR reales con datos ficticios; no manda correos reales.
 Las reglas nuevas se documentan en `docs/VALIDACION_CAMPOS.md`.
-Se verificó un PDF de tres páginas, Q250.00, dos boletos; una sola compra y un solo
+Se verificó un PDF de tres páginas, Q1,600.00, dos boletos; una sola compra y un solo
 envío aunque se consulte otra vez. La configuración de Gmail y el despliegue deben
 validarse finalmente con una cuenta de prueba controlada.
+
+## Precio base, recargos y estado del comprobante
+
+El punto de venta muestra base y recargo por entrada, sumas de base y recargos,
+y total final. Se conservan las tarifas del backend: VIP +45%, Plata +25% y
+General sin recargo. Un VIP con base Q1,000 y una General Q150 suman Q1,600.
+Las nuevas ventas guardan el desglose por boleto y el comprobante lo imprime.
+Las antiguas sin desglose mantienen su precio final y explican que no está
+registrado; no se reconstruye con el inventario actual.
+
+El PDF muestra «PAGADO · venta registrada» y «EMITIDO · comprobante» tras validar
+la compra. Pagado corresponde al cobro confirmado por el vendedor, no verifica
+bancos ni pasarelas. Emitido indica generación de PDF, no entrega del correo.
+El QR conserva la consulta del registro existente en la API.
+
+El backend debe aplicar la migración aditiva al arrancar (tres columnas nuevas
+con `ADD COLUMN IF NOT EXISTS`, sin rellenar registros antiguos). La cuenta
+PostgreSQL necesita permiso ALTER TABLE. Revisar ACTIVACION.md antes de desplegar.

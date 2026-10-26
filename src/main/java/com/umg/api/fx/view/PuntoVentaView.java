@@ -80,11 +80,14 @@ public class PuntoVentaView extends HBox implements Recargable {
     // [3] Carrito
     record Linea(concierto concierto, inventarios_boletos inv, String localidad, BigDecimal precio, int cantidad) {
         BigDecimal subtotal() { return precio.multiply(BigDecimal.valueOf(cantidad)); }
+        BigDecimal base() { return Ui.dec(inv.getPrecio()).setScale(2,java.math.RoundingMode.HALF_UP); }
+        BigDecimal cargo() { return precio.subtract(base()); }
     }
     private final ObservableList<Linea> carrito = FXCollections.observableArrayList();
     private final TableView<Linea> tblCarrito = new TableView<>();
     private final ComboBox<cliente> cbCliente = new ComboBox<>();
     private final Label lblTotal = new Label();
+    private final Label lblDesglose = new Label();
     private final SimpleBooleanProperty cobrando = new SimpleBooleanProperty(false);
 
     public PuntoVentaView() {
@@ -163,7 +166,7 @@ public class PuntoVentaView extends HBox implements Recargable {
         HBox acciones = new HBox(10, btnAgregar);
         acciones.setAlignment(Pos.CENTER_LEFT);
 
-        VBox p = new VBox(10, titulo, lblEvento, tblInventario, acciones);
+        VBox p = new VBox(10, titulo, new Label("Tarifas: VIP +45% · Plata +25% · General sin recargo"), lblEvento, tblInventario, acciones);
         p.getStyleClass().add("panel");
         return p;
     }
@@ -175,6 +178,8 @@ public class PuntoVentaView extends HBox implements Recargable {
         Ui.columnas(tblCarrito,
                 Ui.col("Evento", l -> l.concierto().getTitulo_evento(), 120),
                 Ui.col("Localidad", Linea::localidad, 90),
+                Ui.col("Base", l -> Ui.dinero(l.base()), 75),
+                Ui.col("Recargo", l -> Ui.dinero(l.cargo()), 75),
                 Ui.col("Cant.", l -> String.valueOf(l.cantidad()), 50),
                 Ui.col("Subtotal", l -> Ui.dinero(l.subtotal()), 90));
         tblCarrito.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
@@ -218,7 +223,8 @@ public class PuntoVentaView extends HBox implements Recargable {
         HBox pie = new HBox(10, new Label("Total:"), lblTotal, esp, cobrar);
         pie.setAlignment(Pos.CENTER_LEFT);
 
-        VBox p = new VBox(10, titulo, tblCarrito, botonesCarrito, filaCliente, pie);
+        lblDesglose.setWrapText(true);
+        VBox p = new VBox(10, titulo, tblCarrito, botonesCarrito, filaCliente, lblDesglose, pie);
         p.getStyleClass().add("panel");
         return p;
     }
@@ -305,15 +311,9 @@ public class PuntoVentaView extends HBox implements Recargable {
 
     // La API cobra un recargo según la localidad: VIP +45 % y "Plata" +25 %
     private BigDecimal precioFinal(inventarios_boletos inv) {
-        BigDecimal precio = Ui.dec(inv.getPrecio());
-        String nombre = nombreLocalidad.get(inv.getId_localidad());
-        if ("VIP".equals(nombre)) {
-            return precio.multiply(new BigDecimal("1.45"));
-        }
-        if ("Plata".equals(nombre)) {
-            return precio.multiply(new BigDecimal("1.25"));
-        }
-        return precio;
+        BigDecimal precio = Ui.dec(inv.getPrecio()).setScale(2,java.math.RoundingMode.HALF_UP);
+        return precio.add(com.umg.api.service.Tarifas.cargo(precio,
+                com.umg.api.service.Tarifas.porcentaje(nombreLocalidad.get(inv.getId_localidad()))));
     }
 
     private void agregarAlCarrito() {
@@ -335,6 +335,8 @@ public class PuntoVentaView extends HBox implements Recargable {
     }
 
     private void actualizarTotal() {
+        BigDecimal bases=carrito.stream().map(l->l.base().multiply(BigDecimal.valueOf(l.cantidad()))).reduce(BigDecimal.ZERO,BigDecimal::add);
+        lblDesglose.setText("Precio base: "+Ui.dinero(bases)+" · Recargos: "+Ui.dinero(total().subtract(bases)));
         lblTotal.setText(Ui.dinero(total()));
     }
 

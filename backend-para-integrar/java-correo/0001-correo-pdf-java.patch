@@ -1,7 +1,7 @@
 From 5fdc8a3ab502f7bf2540343e41a6e65bf24fd7e8 Mon Sep 17 00:00:00 2001
 From: VaneSiam <karlasiam18@gmail.com>
 Date: Mon, 26 Oct 2026 20:28:55 +0000
-Subject: [PATCH 1/2] =?UTF-8?q?Integra=20recepci=C3=B3n=20del=20PDF=20de?=
+Subject: [PATCH 1/3] =?UTF-8?q?Integra=20recepci=C3=B3n=20del=20PDF=20de?=
  =?UTF-8?q?=20Java=20y=20env=C3=ADo=20de=20comprobantes=20por=20Gmail?=
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
@@ -617,7 +617,7 @@ index 0000000..a64c40e
 From f51de34a29b204ae7849e69298b6efe59f26a282 Mon Sep 17 00:00:00 2001
 From: VaneSiam <karlasiam18@gmail.com>
 Date: Mon, 26 Oct 2026 20:43:25 +0000
-Subject: [PATCH 2/2] =?UTF-8?q?Valida=20correo=20obligatorio,=20nombres,?=
+Subject: [PATCH 2/3] =?UTF-8?q?Valida=20correo=20obligatorio,=20nombres,?=
  =?UTF-8?q?=20tel=C3=A9fonos=20y=20formularios=20en=20la=20API?=
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
@@ -860,6 +860,200 @@ index 0000000..c17af0a
 +  assert.equal((await req('localidades/create',{id_concierto:1,precio:'NaN'})).status,400);
 +  assert.equal(escritos,3);
 + }finally{await new Promise(r=>s.close(r));}
++});
+-- 
+2.52.0
+
+
+From 110a1ff34d91f18334330114da70bad676bb44c8 Mon Sep 17 00:00:00 2001
+From: VaneSiam <karlasiam18@gmail.com>
+Date: Mon, 26 Oct 2026 20:48:44 +0000
+Subject: [PATCH 3/3] =?UTF-8?q?Conserva=20el=20precio=20base=20y=20el=20re?=
+ =?UTF-8?q?cargo=20hist=C3=B3rico=20de=20cada=20boleto?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ COMPROBANTES_JAVA.md                          | 22 ++++++++++++++++---
+ .../controller/detalle_ventas.controller.js   | 18 +++++----------
+ .../models/detalle_ventas.model.js            |  3 +++
+ .../service/migrar-tarifas.js                 |  8 +++++++
+ Proyecto_final_progra2/service/tarifas.js     |  8 +++++++
+ server.js                                     |  2 +-
+ test/java-correo.cjs                          |  5 +++--
+ test/tarifas.test.cjs                         |  8 +++++++
+ 8 files changed, 55 insertions(+), 19 deletions(-)
+ create mode 100644 Proyecto_final_progra2/service/migrar-tarifas.js
+ create mode 100644 Proyecto_final_progra2/service/tarifas.js
+ create mode 100644 test/tarifas.test.cjs
+
+diff --git a/COMPROBANTES_JAVA.md b/COMPROBANTES_JAVA.md
+index d67f1b2..633b779 100644
+--- a/COMPROBANTES_JAVA.md
++++ b/COMPROBANTES_JAVA.md
+@@ -16,7 +16,7 @@ destinatario indicado por Java. No se genera otro PDF en Node.
+    - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`: credenciales OAuth de esa cuenta con autorización `https://www.googleapis.com/auth/gmail.send`.
+ 
+ 3. Habilitar Gmail API en el proyecto de Google Cloud; configurar la pantalla de consentimiento y un cliente OAuth. Autorizar la cuenta remitente con acceso offline y obtener el refresh token. Si se usa OAuth Playground con credenciales propias, registrar `https://developers.google.com/oauthplayground` como URI de retorno. No compartir el token en el chat. Las aplicaciones externas en modo de prueba pueden emitir refresh tokens con vigencia de siete días; revisar el estado del consentimiento para uso sostenido.
+-4. Redesplegar. El arranque espera `sequelize.sync()` y crea únicamente la tabla nueva `comprobantes_correo` si no existe; no usa `force` ni `alter`. La cuenta PostgreSQL necesita permiso para crearla. La sincronización previa de las demás tablas conserva el comportamiento existente.
++4. Redesplegar. El arranque espera `sequelize.sync()` y crea la tabla nueva `comprobantes_correo` y añade tres columnas de desglose histórico a `detalle_ventas` si no existen; no usa `sync({force:true})` ni `sync({alter:true})`. La cuenta PostgreSQL necesita permiso para crearla. La sincronización previa de las demás tablas conserva el comportamiento existente.
+ 5. Usar el cliente Java actualizado y volver a iniciar sesión para recibir el token (ocho horas).
+ 6. Con una cuenta de correo de prueba controlada, registrar una compra, revisar el mensaje de aceptación, la tabla `comprobantes_correo` y la bandeja/spam. La aceptación de Gmail no garantiza entrega.
+ 
+@@ -67,14 +67,30 @@ No se migran ni reescriben las contraseñas existentes.
+ 
+ ## Verificación reproducible sin correos reales
+ 
+-`npm test`: nueve casos, incluyendo composición MIME real y Gmail simulado,
++`npm test`: diez casos, incluyendo composición MIME real y Gmail simulado,
+ propiedad de ventas, concurrencia, reintentos, totales, PDF y errores.
+ Para la integración completa, compilar Java y `verificacion/PruebaCorreoJava.java`
+ y ejecutar `node test/java-correo.cjs '<classpath Java con clases de prueba>' '<directorio temporal>'`.
+ La prueba levanta Express en loopback, registra una compra ficticia y recibe un
+-PDF real generado por JasperReports: tres páginas, dos boletos QR, Q250.00.
++PDF real generado por JasperReports: tres páginas, dos boletos QR, Q1,600.00.
+ No se accede a PostgreSQL compartido ni se envían correos reales. Las pruebas usan
+ un repositorio simulado; la migración y concurrencia deben comprobarse además en
+ PostgreSQL de pruebas antes de publicar en producción.
+ 
+ Las reglas de todos los formularios y las limitaciones del QR se describen en `VALIDACION_CAMPOS.md`.
++
++## Desglose histórico y etiquetas del comprobante
++
++Se conserva la tarifa vigente: VIP +45%, Plata +25%, General sin recargo.
++Las nuevas ventas guardan precio_base, recargo_porcentaje y recargo_monto por
++boleto junto con el precio final. La migración aditiva `migrar-tarifas.js` se ejecuta
++al arrancar, tras sync; necesita permiso ALTER TABLE. No rellena ventas antiguas
++con precios actuales. El PDF indica «Desglose histórico no registrado» si faltan
++estos datos y mantiene el importe original. Los cargos se redondean por boleto
++a centavos; no se crea un cargo nuevo.
++
++«PAGADO · venta registrada» refleja la confirmación de cobro del vendedor mediante
++el flujo de venta existente, con efectivo/POS externo. No verifica un banco ni una
++pasarela. «EMITIDO · comprobante» indica que el PDF se generó. Ninguna etiqueta
++significa entrega del correo ni ingreso al concierto. El QR conserva su función
++actual de consulta de registro; estas etiquetas se muestran en el PDF.
+diff --git a/Proyecto_final_progra2/controller/detalle_ventas.controller.js b/Proyecto_final_progra2/controller/detalle_ventas.controller.js
+index fdd850e..dc2d03a 100644
+--- a/Proyecto_final_progra2/controller/detalle_ventas.controller.js
++++ b/Proyecto_final_progra2/controller/detalle_ventas.controller.js
+@@ -131,19 +131,8 @@ for (let idInv of ids_inventarios) {
+         
+     }
+ 
+-    const preciosN = inventarioID.precio;
+-    const nombreLocalidad = LocalidadID.nombre ? LocalidadID.nombre.trim() : "";
+-    let totalpagar = 0;
+-
+-    if (nombreLocalidad === "VIP") {
+-        const precios = preciosN * 0.45;
+-        totalpagar = preciosN + precios;
+-    } else if (nombreLocalidad === "Plata") {
+-        const precios = preciosN * 0.25;
+-        totalpagar = preciosN + precios;
+-    } else {
+-        totalpagar = preciosN;
+-    }
++    const tarifa = require('../service/tarifas')(inventarioID.precio, LocalidadID.nombre);
++    const totalpagar = tarifa.precio_unitario;
+ 
+     Totalgeneral += totalpagar;
+   
+@@ -155,6 +144,9 @@ detallesAInsertar.push({
+                     id_cliente: req.body.id_cliente,
+                     asiento: LocalidadID.asiento,
+                     cantidad: 1, 
++                    precio_base: tarifa.precio_base,
++                    recargo_porcentaje: tarifa.recargo_porcentaje,
++                    recargo_monto: tarifa.recargo_monto,
+                     precio_unitario: totalpagar,
+                     subtotal: totalpagar
+                 },
+diff --git a/Proyecto_final_progra2/models/detalle_ventas.model.js b/Proyecto_final_progra2/models/detalle_ventas.model.js
+index 868cd22..b84261e 100644
+--- a/Proyecto_final_progra2/models/detalle_ventas.model.js
++++ b/Proyecto_final_progra2/models/detalle_ventas.model.js
+@@ -31,6 +31,9 @@ module.exports = (sequelize, Sequelize) =>{
+             type: Sequelize.FLOAT,
+             allowNull: false
+         },
++        precio_base: {type: Sequelize.DECIMAL(10,2), allowNull:true},
++        recargo_porcentaje: {type: Sequelize.DECIMAL(5,2), allowNull:true},
++        recargo_monto: {type: Sequelize.DECIMAL(10,2), allowNull:true},
+         subtotal:{
+             type: Sequelize.FLOAT,
+             allowNull: false
+diff --git a/Proyecto_final_progra2/service/migrar-tarifas.js b/Proyecto_final_progra2/service/migrar-tarifas.js
+new file mode 100644
+index 0000000..9eb3c56
+--- /dev/null
++++ b/Proyecto_final_progra2/service/migrar-tarifas.js
+@@ -0,0 +1,8 @@
++// Migración aditiva e idempotente para conservar tarifas históricas; sin backfill.
++module.exports=async db=>{
++ const tabla=db.sequelize.getQueryInterface().queryGenerator.quoteTable(db.d_ventas.getTableName());
++ await db.sequelize.query(`ALTER TABLE ${tabla}
++ ADD COLUMN IF NOT EXISTS precio_base NUMERIC(10,2),
++ ADD COLUMN IF NOT EXISTS recargo_porcentaje NUMERIC(5,2),
++ ADD COLUMN IF NOT EXISTS recargo_monto NUMERIC(10,2)`);
++};
+diff --git a/Proyecto_final_progra2/service/tarifas.js b/Proyecto_final_progra2/service/tarifas.js
+new file mode 100644
+index 0000000..71479df
+--- /dev/null
++++ b/Proyecto_final_progra2/service/tarifas.js
+@@ -0,0 +1,8 @@
++module.exports = function tarifa(base,localidad) {
++ const precio=Number(base);
++ if(!Number.isFinite(precio) || precio<0)throw new Error('Precio base inválido.');
++ const porcentaje=String(localidad).trim()==='VIP'?45:String(localidad).trim()==='Plata'?25:0;
++ const centavos=Math.round(precio*100);
++ const cargo=Math.round(centavos*porcentaje/100);
++ return {precio_base:centavos/100,recargo_porcentaje:porcentaje,recargo_monto:cargo/100,precio_unitario:(centavos+cargo)/100};
++};
+diff --git a/server.js b/server.js
+index eebdc57..dc156d3 100644
+--- a/server.js
++++ b/server.js
+@@ -20,7 +20,7 @@ app.use(bodyParser.json());
+ app.use(bodyParser.urlencoded({ extended: true }));
+ 
+ const db = require("./Proyecto_final_progra2/models");
+-const tablasListas = db.sequelize.sync();
++const tablasListas = db.sequelize.sync().then(() => require('./Proyecto_final_progra2/service/migrar-tarifas')(db));
+ 
+ app.get("/", (req, res) => {
+   res.json({ message: "UMG Web Application" });
+diff --git a/test/java-correo.cjs b/test/java-correo.cjs
+index a64c40e..4165b60 100644
+--- a/test/java-correo.cjs
++++ b/test/java-correo.cjs
+@@ -7,8 +7,9 @@ const fixture=require('./fixture.cjs');
+ const f=fixture();
+ let ventas=0, detalles=0;
+ const app=f.app();
+-const lineas=[{id_venta:8,id_detalle:21,id_inventario:700,id_cliente:3,cantidad:1,precio_unitario:100,subtotal:100},
+- {id_venta:8,id_detalle:22,id_inventario:701,id_cliente:3,cantidad:1,precio_unitario:150,subtotal:150}];
++f.venta.total_venta=1600;
++const lineas=[{id_venta:8,id_detalle:21,id_inventario:700,id_cliente:3,cantidad:1,precio_base:1000,recargo_porcentaje:45,recargo_monto:450,precio_unitario:1450,subtotal:1450},
++ {id_venta:8,id_detalle:22,id_inventario:701,id_cliente:3,cantidad:1,precio_base:150,recargo_porcentaje:0,recargo_monto:0,precio_unitario:150,subtotal:150}];
+ f.db.d_ventas.findAll=async()=>lineas;
+ f.transportar=async mensaje=>{
+  const pdf=mensaje.attachments[0].content;
+diff --git a/test/tarifas.test.cjs b/test/tarifas.test.cjs
+new file mode 100644
+index 0000000..b426bb5
+--- /dev/null
++++ b/test/tarifas.test.cjs
+@@ -0,0 +1,8 @@
++const {test}=require('node:test');const assert=require('node:assert/strict');const tarifa=require('../Proyecto_final_progra2/service/tarifas');
++test('VIP 45%, Plata 25%, General sin recargo; total visible y snapshot en centavos',()=>{
++ assert.deepEqual(tarifa(1000,'VIP'),{precio_base:1000,recargo_porcentaje:45,recargo_monto:450,precio_unitario:1450});
++ assert.equal(tarifa(1000,'VIP').precio_unitario+tarifa(150,'General').precio_unitario,1600);
++ assert.deepEqual(tarifa(100,'Plata'),{precio_base:100,recargo_porcentaje:25,recargo_monto:25,precio_unitario:125});
++ assert.equal(tarifa(0.10,'VIP').precio_unitario,0.15);
++ assert.throws(()=>tarifa('NaN','VIP'));
 +});
 -- 
 2.52.0

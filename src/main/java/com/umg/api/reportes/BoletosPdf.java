@@ -145,12 +145,13 @@ public final class BoletosPdf {
         JasperDesign d=base("comprobante");
         for(String n:List.of("numero","fecha","vendedor","cliente","telefono","observaciones"))dato(d,n,String.class,true);
         dato(d,"cantidad",Integer.class,true);dato(d,"total",BigDecimal.class,true);
-        for(String n:List.of("evento","tipo"))dato(d,n,String.class,false);
+        for(String n:List.of("evento","tipo","desglose"))dato(d,n,String.class,false);
         dato(d,"cantidad",Integer.class,false);dato(d,"precio",BigDecimal.class,false);dato(d,"subtotal",BigDecimal.class,false);
         JRDesignBand t=banda(290);caja(t,0,0,515,100,"#142438");caja(t,0,95,515,5,"#14B8A6");
         etiqueta(t,20,16,470,18,"BOLETERÍA · CONCIERTOS Y EVENTOS",10,true,"#8BE3D8");
         etiqueta(t,20,40,360,35,"Comprobante de venta",23,true,"#FFFFFF");
         texto(t,390,47,105,25,"\"N.º \" + $P{numero}",14,true,"#FFFFFF",null);
+        etiqueta(t,0,103,515,16,"PAGADO · venta registrada | EMITIDO · comprobante",8,true,"#243247");
         etiqueta(t,0,120,260,18,"FECHA DE VENTA",8,true,"#65758A");texto(t,0,140,260,25,"$P{fecha}",11,false,"#243247",null);
         etiqueta(t,285,120,230,18,"VENDEDOR",8,true,"#65758A");texto(t,285,140,230,30,"$P{vendedor}",11,false,"#243247",null);
         caja(t,0,180,515,85,"#F0F5F8");etiqueta(t,16,194,300,18,"CLIENTE",8,true,"#65758A");
@@ -159,8 +160,9 @@ public final class BoletosPdf {
         JRDesignBand h=banda(36);caja(h,0,0,515,32,"#E7EEF3");
         int[] xs={10,220,310,355,440},ws={205,85,40,75,75};String[] nombres={"EVENTO / CONCIERTO","ENTRADA","CANT.","PRECIO Q","TOTAL Q"};
         for(int i=0;i<5;i++)etiqueta(h,xs[i],10,ws[i],18,nombres[i],8,true,"#243247");d.setColumnHeader(h);
-        JRDesignBand fila=banda(62);String[] campos={"evento","tipo","cantidad","precio","subtotal"};
+        JRDesignBand fila=banda(100);String[] campos={"evento","tipo","cantidad","precio","subtotal"};
         for(int i=0;i<5;i++)texto(fila,xs[i],9,ws[i],45,"$F{"+campos[i]+"}",9,i==4,"#243247",i>=3?"#,##0.00":null);
+        texto(fila,10,59,495,36,"$F{desglose}",8,false,"#65758A",null);
         ((JRDesignSection)d.getDetailSection()).addBand(fila);
         JRDesignBand resumen=banda(210);caja(resumen,0,15,515,76,"#142438");
         etiqueta(resumen,18,31,240,18,"TOTAL PAGADO",10,true,"#8BE3D8");
@@ -172,7 +174,7 @@ public final class BoletosPdf {
     }
     private static JasperDesign boleto()throws Exception {
         JasperDesign d=base("boletos");
-        for(String n:List.of("evento","fecha_evento","recinto","localidad","referencia","nota"))dato(d,n,String.class,false);
+        for(String n:List.of("evento","fecha_evento","recinto","localidad","referencia","nota","desglose"))dato(d,n,String.class,false);
         dato(d,"precio",BigDecimal.class,false);dato(d,"qr",java.awt.Image.class,false);
         JRDesignBand b=banda(740);b.setSplitType(SplitTypeEnum.PREVENT);caja(b,0,0,515,100,"#142438");
         etiqueta(b,20,18,475,20,"BOLETERÍA · ENTRADA AL EVENTO",11,true,"#8BE3D8");
@@ -181,6 +183,7 @@ public final class BoletosPdf {
         texto(b,0,165,515,35,"\"Recinto: \" + $F{recinto}",12,false,"#142438",null);
         texto(b,0,210,515,30,"\"Entrada / asiento: \" + $F{localidad}",12,false,"#142438",null);
         texto(b,0,250,515,30,"$F{precio}",12,true,"#142438","'Precio por boleto: Q' #,##0.00");
+        texto(b,0,280,515,28,"$F{desglose}",9,false,"#65758A",null);
         JRDesignImage qr=new JRDesignImage(d);qr.setX(132);qr.setY(310);qr.setWidth(250);qr.setHeight(250);
         qr.setScaleImage(ScaleImageEnum.RETAIN_SHAPE);qr.setExpression(new JRDesignExpression("$F{qr}"));b.addElement(qr);
         texto(b,0,590,515,25,"$F{referencia}",11,true,"#142438",null);

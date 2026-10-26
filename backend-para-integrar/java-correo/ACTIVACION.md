@@ -16,7 +16,7 @@ destinatario indicado por Java. No se genera otro PDF en Node.
    - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`: credenciales OAuth de esa cuenta con autorización `https://www.googleapis.com/auth/gmail.send`.
 
 3. Habilitar Gmail API en el proyecto de Google Cloud; configurar la pantalla de consentimiento y un cliente OAuth. Autorizar la cuenta remitente con acceso offline y obtener el refresh token. Si se usa OAuth Playground con credenciales propias, registrar `https://developers.google.com/oauthplayground` como URI de retorno. No compartir el token en el chat. Las aplicaciones externas en modo de prueba pueden emitir refresh tokens con vigencia de siete días; revisar el estado del consentimiento para uso sostenido.
-4. Redesplegar. El arranque espera `sequelize.sync()` y crea únicamente la tabla nueva `comprobantes_correo` si no existe; no usa `force` ni `alter`. La cuenta PostgreSQL necesita permiso para crearla. La sincronización previa de las demás tablas conserva el comportamiento existente.
+4. Redesplegar. El arranque espera `sequelize.sync()` y crea la tabla nueva `comprobantes_correo` y añade tres columnas de desglose histórico a `detalle_ventas` si no existen; no usa `sync({force:true})` ni `sync({alter:true})`. La cuenta PostgreSQL necesita permiso para crearla. La sincronización previa de las demás tablas conserva el comportamiento existente.
 5. Usar el cliente Java actualizado y volver a iniciar sesión para recibir el token (ocho horas).
 6. Con una cuenta de correo de prueba controlada, registrar una compra, revisar el mensaje de aceptación, la tabla `comprobantes_correo` y la bandeja/spam. La aceptación de Gmail no garantiza entrega.
 
@@ -67,14 +67,30 @@ No se migran ni reescriben las contraseñas existentes.
 
 ## Verificación reproducible sin correos reales
 
-`npm test`: nueve casos, incluyendo composición MIME real y Gmail simulado,
+`npm test`: diez casos, incluyendo composición MIME real y Gmail simulado,
 propiedad de ventas, concurrencia, reintentos, totales, PDF y errores.
 Para la integración completa, compilar Java y `verificacion/PruebaCorreoJava.java`
 y ejecutar `node test/java-correo.cjs '<classpath Java con clases de prueba>' '<directorio temporal>'`.
 La prueba levanta Express en loopback, registra una compra ficticia y recibe un
-PDF real generado por JasperReports: tres páginas, dos boletos QR, Q250.00.
+PDF real generado por JasperReports: tres páginas, dos boletos QR, Q1,600.00.
 No se accede a PostgreSQL compartido ni se envían correos reales. Las pruebas usan
 un repositorio simulado; la migración y concurrencia deben comprobarse además en
 PostgreSQL de pruebas antes de publicar en producción.
 
 Las reglas de todos los formularios y las limitaciones del QR se describen en `VALIDACION_CAMPOS.md`.
+
+## Desglose histórico y etiquetas del comprobante
+
+Se conserva la tarifa vigente: VIP +45%, Plata +25%, General sin recargo.
+Las nuevas ventas guardan precio_base, recargo_porcentaje y recargo_monto por
+boleto junto con el precio final. La migración aditiva `migrar-tarifas.js` se ejecuta
+al arrancar, tras sync; necesita permiso ALTER TABLE. No rellena ventas antiguas
+con precios actuales. El PDF indica «Desglose histórico no registrado» si faltan
+estos datos y mantiene el importe original. Los cargos se redondean por boleto
+a centavos; no se crea un cargo nuevo.
+
+«PAGADO · venta registrada» refleja la confirmación de cobro del vendedor mediante
+el flujo de venta existente, con efectivo/POS externo. No verifica un banco ni una
+pasarela. «EMITIDO · comprobante» indica que el PDF se generó. Ninguna etiqueta
+significa entrega del correo ni ingreso al concierto. El QR conserva su función
+actual de consulta de registro; estas etiquetas se muestran en el PDF.

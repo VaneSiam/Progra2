@@ -13,7 +13,7 @@ public class PruebaCorreoJava {
         Sesion.iniciar(login.usuario, login.token);
         var venta = new checkoutservice().registrarVenta(2, 3,
                 List.of(new checkoutservice.Item(700,1), new checkoutservice.Item(701,1)));
-        if (venta.getId_venta()!=8 || venta.getTotal_venta()!=250f) throw new AssertionError("Venta incorrecta");
+        if (venta.getId_venta()!=8 || venta.getTotal_venta()!=1600f) throw new AssertionError("Venta incorrecta");
         var documento = new ComprobanteService().cargar(8,2);
         if (documento.lineas().size()!=2) throw new AssertionError("Faltan boletos");
         var fila = documento.lineas().get(0);

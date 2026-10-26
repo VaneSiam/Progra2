@@ -58,6 +58,7 @@ public class ComprobanteService {
             f.put("tipo",tipo);
             String asiento=d.path("asiento").asText(localidad.path("asiento").asText(""));
             f.put("asiento",asiento);f.put("localidad",tipo+" "+asiento);
+            f.put("desglose",Tarifas.desglose(d));
             f.put("precio",importe(d,"precio_unitario"));f.put("subtotal",importe(d,"subtotal"));
             f.put("cantidad",entero(d,"cantidad"));f.put("id_detalle",entero(d,"id_detalle"));
             f.put("id_inventario",invId);f.put("qr_url",d.path("qr_url").asText(""));
