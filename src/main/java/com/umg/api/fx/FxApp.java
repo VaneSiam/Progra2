@@ -7,6 +7,7 @@ import javafx.application.Application;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
+import javafx.stage.Screen;
 
 /** Aplicación JavaFX: cambia entre la pantalla de login y la ventana principal. */
 public class FxApp extends Application {
@@ -24,14 +25,17 @@ public class FxApp extends Application {
         stage.setMinWidth(0);
         stage.setMinHeight(0);
         stage.setMaximized(false);
-        cambiarEscena(new LoginView(FxApp::mostrarPrincipal, aviso), 460, 460);
+        cambiarEscena(new LoginView(FxApp::mostrarPrincipal, aviso), 500, 550);
         stage.centerOnScreen();
     }
 
     public static void mostrarPrincipal(usuario u) {
-        cambiarEscena(new MainView(u), 1320, 780);
-        stage.setMinWidth(1100);
-        stage.setMinHeight(640);
+        var pantalla = Screen.getPrimary().getVisualBounds();
+        double ancho = Math.min(1440, pantalla.getWidth() - 40);
+        double alto = Math.min(850, pantalla.getHeight() - 40);
+        cambiarEscena(new MainView(u), ancho, alto);
+        stage.setMinWidth(Math.min(1024, ancho));
+        stage.setMinHeight(Math.min(620, alto));
         stage.centerOnScreen();
     }
 
@@ -40,5 +44,6 @@ public class FxApp extends Application {
         var css = FxApp.class.getResource("/fx/style.css");
         if (css != null) escena.getStylesheets().add(css.toExternalForm());
         stage.setScene(escena);
+        stage.sizeToScene();
     }
 }

@@ -31,6 +31,7 @@ public class ReportesView extends VBox implements Recargable {
                 Ui.col("Concierto",ReporteVentasService.Linea::evento,175),Ui.col("Artista",ReporteVentasService.Linea::artista,140),
                 Ui.col("Vendedor",ReporteVentasService.Linea::vendedor,110),Ui.col("Asiento",ReporteVentasService.Linea::entrada,80),
                 Ui.col("Cant.",l->String.valueOf(l.cantidad()),55),Ui.col("Precio",l->Ui.dinero(l.precio()),100),Ui.col("Importe",l->Ui.dinero(l.subtotal()),100));
+        tabla.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
         tabla.setPlaceholder(new Label("Sin resultados para estos filtros."));VBox.setVgrow(tabla,Priority.ALWAYS);
         estado.setWrapText(true);aviso.setWrapText(true);total.setStyle("-fx-font-size:18px;-fx-font-weight:bold;");
         for(ComboBox<Opcion> cb:List.of(concierto,artista,vendedor))cb.valueProperty().addListener((o,a,b)->invalidar());

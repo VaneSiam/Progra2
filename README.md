@@ -2,6 +2,14 @@
 
 Cliente JavaFX para el proyecto de Programación II. Se conserva el punto de venta del ZIP actualizado del equipo, incluidos sus precios finales. Este repositorio contiene una copia preparada para integrar comprobantes y boletos con QR; no sustituye automáticamente la aplicación de tu computadora ni la API de tus compañeros.
 
+## Interfaz integrada
+
+Se adaptó el diseño visual del ZIP Swing recibido a JavaFX: menú lateral azul, tablas con filas alternadas, login renovado y navegación que conserva el carrito y los módulos existentes. No se reemplazó la lógica por la versión Swing ni se cambiaron las tarifas.
+
+[Guía para copiar los seis archivos a tu NetBeans](docs/INTERFAZ.md)
+
+![Interfaz JavaFX integrada con datos ficticios](docs/interfaz-ventas.png)
+
 ## Ejecutar en NetBeans / Windows
 
 1. Descargar el proyecto desde GitHub (Code → Download ZIP), extraerlo y abrir la carpeta que contiene pom.xml en NetBeans. Conservar el proyecto anterior como respaldo.
@@ -27,7 +35,7 @@ La pestaña **Reportes** permite combinar filtros por concierto, artista y vende
 
 [Instrucciones para copiar el código a NetBeans](docs/REPORTES.md) · [PDF de muestra con datos ficticios](docs/reporte-ventas-ejemplo.pdf)
 
-![Interfaz de reportes con datos ficticios](docs/reportes-interfaz.png)
+
 
 Las ventas sin detalles se indican en el aviso y no se cuentan como boletos vendidos. Si faltan asociaciones necesarias, el reporte pide revisar/recargar los datos en vez de inventar una cifra. Un artista con ID 0 es compatible. Los vendedores aparecen por ID cuando la API no entrega su nombre. Los nombres de artista/concierto provienen del catálogo actual.
 

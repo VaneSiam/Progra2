@@ -92,9 +92,12 @@ public class PuntoVentaView extends HBox implements Recargable {
         VBox izq = panelConciertos();
         VBox centro = panelLocalidades();
         VBox der = panelCarrito();
-        izq.setPrefWidth(430);
-        centro.setPrefWidth(340);
-        der.setPrefWidth(400);
+        izq.setPrefWidth(360);
+        izq.setMinWidth(280);
+        centro.setPrefWidth(290);
+        centro.setMinWidth(245);
+        der.setPrefWidth(340);
+        der.setMinWidth(300);
         for (VBox p : List.of(izq, centro, der)) HBox.setHgrow(p, Priority.ALWAYS);
         getChildren().addAll(izq, centro, der);
 
@@ -144,6 +147,10 @@ public class PuntoVentaView extends HBox implements Recargable {
                 Ui.col("Localidad", i -> nombreLocalidad.get(i.getId_localidad()), 110),
                 Ui.col("Asiento", i -> asientoLocalidad.get(i.getId_localidad()), 80),
                 Ui.col("Precio", i -> Ui.dinero(precioFinal(i)), 80));
+        tblInventario.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        tblInventario.getColumns().get(0).setMinWidth(68);
+        tblInventario.getColumns().get(1).setMinWidth(48);
+        tblInventario.getColumns().get(2).setMinWidth(92);
         tblInventario.setItems(inventario);
         VBox.setVgrow(tblInventario, Priority.ALWAYS);
 
@@ -168,6 +175,11 @@ public class PuntoVentaView extends HBox implements Recargable {
                 Ui.col("Localidad", Linea::localidad, 90),
                 Ui.col("Cant.", l -> String.valueOf(l.cantidad()), 50),
                 Ui.col("Subtotal", l -> Ui.dinero(l.subtotal()), 90));
+        tblCarrito.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        tblCarrito.getColumns().get(0).setMinWidth(64);
+        tblCarrito.getColumns().get(1).setMinWidth(64);
+        tblCarrito.getColumns().get(2).setMinWidth(46);
+        tblCarrito.getColumns().get(3).setMinWidth(92);
         tblCarrito.setItems(carrito);
         VBox.setVgrow(tblCarrito, Priority.ALWAYS);
         carrito.addListener((ListChangeListener<Linea>) c -> actualizarTotal());
@@ -188,7 +200,10 @@ public class PuntoVentaView extends HBox implements Recargable {
         HBox.setHgrow(cbCliente, Priority.ALWAYS);
         Button sinCliente = new Button("✕");
         sinCliente.setOnAction(e -> cbCliente.setValue(null));
-        HBox filaCliente = new HBox(8, new Label("Cliente:"), cbCliente, sinCliente);
+        Label etiquetaCliente = new Label("Cliente:");
+        etiquetaCliente.setMinWidth(Region.USE_PREF_SIZE);
+        cbCliente.setMinWidth(0);
+        HBox filaCliente = new HBox(8, etiquetaCliente, cbCliente, sinCliente);
         filaCliente.setAlignment(Pos.CENTER_LEFT);
 
         lblTotal.getStyleClass().add("total");

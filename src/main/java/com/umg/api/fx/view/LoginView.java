@@ -22,9 +22,9 @@ public class LoginView extends VBox {
         setPadding(new Insets(40));
         getStyleClass().add("login");
 
-        Label titulo = new Label("🎟  Boletería");
+        Label titulo = new Label("Boletería");
         titulo.getStyleClass().add("titulo-login");
-        Label sub = new Label("Venta de boletos en punto físico");
+        Label sub = new Label("Inicia sesión para acceder a tu punto de venta");
         sub.getStyleClass().add("subtitulo");
 
         TextField txtUsuario = new TextField();
@@ -66,6 +66,9 @@ public class LoginView extends VBox {
                 });
         });
 
-        getChildren().addAll(titulo, sub, txtUsuario, txtClave, btn, lblError);
+        txtUsuario.setAccessibleText("Usuario");
+        txtClave.setAccessibleText("Contraseña");
+        getChildren().addAll(titulo, sub, new Label("Usuario"), txtUsuario,
+                new Label("Contraseña"), txtClave, btn, lblError);
     }
 }

@@ -12,7 +12,11 @@ Crear estas clases en los paquetes indicados y copiar el contenido completo de l
 
 Se usan las dependencias Jackson, JavaFX y JasperReports ya incluidas. Las clases nuevas admiten código Java 17, pero las bibliotecas JavaFX de este proyecto requieren un JDK reciente según README.
 
-## Una línea en MainView
+## Menú lateral de la versión actual
+
+Si ya copiaste la interfaz lateral de [INTERFAZ.md](INTERFAZ.md), Reportes está registrado dentro de MainView. No agregues la línea de pestañas que aparece debajo; corresponde exclusivamente a la interfaz anterior.
+
+## Una línea en MainView (solo versión anterior con pestañas)
 
 En `MainView.java`, dentro del bloque `if (Sesion.esAdmin())`, después de agregar Usuarios, incorporar:
 
