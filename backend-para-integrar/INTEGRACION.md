@@ -1,6 +1,14 @@
+## Parche completo, actualizado y probado
+
+El archivo [0001-comprobantes-correo-qr.patch](parches/0001-comprobantes-correo-qr.patch) contiene la integración ya aplicada sobre `0143e045fd4601bedaff051779815f24137b5bfb`, incluidos módulos, rutas, hook de correo, nombre de vendedor, dependencias/lockfile y pruebas. Si usas el parche, no repitas los pasos manuales equivalentes de abajo.
+
+En un checkout limpio de la API con la versión indicada, aplicar con `git am ruta/al/0001-comprobantes-correo-qr.patch`. Si hay cambios posteriores, revisar y resolver la integración; no forzar ni reemplazar el trabajo de compañeros. Ejecutar `npm ci` y `npm test` antes del despliegue. El parche también corrige el nombre del modelo en el conteo de inventario (`db.i_boletos`) y rechaza IDs de asientos repetidos antes de escribir. No modifica las tarifas.
+
+La cuenta VaneSiam recibió una denegación de escritura del proxy Git incluso después de comunicar la aceptación de la invitación. La integración NO está desplegada en Render por ese motivo. La configuración de Google/Gmail y del secreto QR en Render sigue requiriendo al administrador del servicio.
+
 # Integración en Proyectoapi2026 / Render
 
-Estos módulos están preparados para el commit `683e87831ab71410654cef07a5e27c071cc491d4` de la API existente. No son un servidor independiente. No copiar node_modules ni archivos de credenciales. No se modifican reglas de precios, nombres de localidades ni tablas.
+La integración se revisó sobre el commit `0143e045fd4601bedaff051779815f24137b5bfb` de la API existente. No son un servidor independiente. No copiar node_modules ni archivos de credenciales. No se modifican reglas de precios, nombres de localidades ni tablas.
 
 ## 1. Archivos y dependencias
 
