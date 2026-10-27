@@ -25,13 +25,19 @@ public final class RegistroCorreoLocal {
         return destino;
     }
     public static String ejecutar(int id,Envio envio) throws Exception {
+        return ejecutar(id,envio,false);
+    }
+    public static String reenviar(int id,Envio envio) throws Exception {
+        return ejecutar(id,envio,true);
+    }
+    private static String ejecutar(int id,Envio envio,boolean reenvio) throws Exception {
         Path p=ruta(id);
         try(var canal=FileChannel.open(p.resolveSibling(p.getFileName()+".lock"),StandardOpenOption.CREATE,StandardOpenOption.WRITE);
             var lock=canal.tryLock()) {
             if(lock==null)throw new IllegalStateException("El envío de esta venta está en proceso.");
             String estado=Files.exists(p)?Files.readString(p):"pendiente";
-            if(estado.equals("aceptado"))return "Este equipo ya registró el envío del comprobante. No se duplicó.";
-            if(!estado.equals("pendiente"))throw new IllegalStateException("Envío en proceso o incierto. Revisa Gmail Enviados antes de volver a enviar.");
+            if(estado.equals("aceptado") && !reenvio)return "Este equipo ya registró el envío del comprobante. No se duplicó.";
+            if(!estado.equals("pendiente") && !(reenvio && estado.equals("aceptado")))throw new IllegalStateException("Envío en proceso o incierto. Revisa Gmail Enviados antes de volver a enviar.");
             Files.writeString(p,"enviando");
             try {envio.ejecutar();Files.writeString(p,"aceptado");return "Gmail aceptó el comprobante para su envío. Revisa la bandeja de entrada y spam.";}
             catch(Exception e) {

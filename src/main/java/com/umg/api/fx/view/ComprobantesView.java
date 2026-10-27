@@ -44,6 +44,28 @@ public class ComprobantesView extends VBox {
                 mensaje -> { enviar.setDisable(false); com.umg.api.fx.util.Ui.info(mensaje); },
                 mensaje -> { enviar.setDisable(false); com.umg.api.fx.util.Ui.error(mensaje); });
         });
+        Button reenviar=new Button("Reenviar comprobante al cliente");
+        reenviar.setOnAction(e -> {
+            if (!com.umg.api.config.Sesion.activa()) { com.umg.api.fx.util.Ui.error("Inicia sesión primero."); return; }
+            if (!com.umg.api.service.CorreoService.configurado()
+                    && !com.umg.api.fx.util.ConfigurarGmail.mostrar(getScene().getWindow())) return;
+            int ultima=com.umg.api.fx.util.UltimaVenta.numeroProperty().get();
+            var pregunta=new javafx.scene.control.TextInputDialog(ultima>0?String.valueOf(ultima):"");
+            pregunta.initOwner(getScene().getWindow());
+            pregunta.setTitle("Reenviar comprobante");
+            pregunta.setHeaderText("Número de la venta existente");
+            var entrada=pregunta.showAndWait();
+            if(entrada.isEmpty())return;
+            final int id;
+            try {id=Integer.parseInt(entrada.get().trim());if(id<1)throw new NumberFormatException();}
+            catch(NumberFormatException ex){com.umg.api.fx.util.Ui.error("Número de venta inválido.");return;}
+            if(!com.umg.api.fx.util.Ui.confirmar("¿Reenviar el comprobante de la venta #"+id+" al correo registrado del cliente?\nSe enviará otra copia con los mismos boletos. No se cobrará otra vez."))return;
+            reenviar.setDisable(true);enviar.setDisable(true);
+            com.umg.api.fx.util.Async.run(
+                () -> new com.umg.api.service.ComprobanteCorreoService().reenviar(id),
+                msg -> {reenviar.setDisable(false);enviar.setDisable(false);com.umg.api.fx.util.Ui.info(msg);},
+                msg -> {reenviar.setDisable(false);enviar.setDisable(false);com.umg.api.fx.util.Ui.error(msg);});
+        });
         Label nota = new Label("El comprobante se envía automáticamente después de vender. Aquí puedes consultar o reintentar sin volver a cobrar.");
         nota.setWrapText(true);
         estadoCorreo.setWrapText(true);
@@ -60,6 +82,6 @@ public class ComprobantesView extends VBox {
                 msg->{probar.setDisable(false);estadoCorreo.setText(msg);});
         });
         refrescarEstado();
-        getChildren().addAll(titulo,ayuda,guardar,nota,estadoCorreo,configurar,probar,enviar);
+        getChildren().addAll(titulo,ayuda,guardar,nota,estadoCorreo,configurar,probar,enviar,reenviar);
     }
 }
