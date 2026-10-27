@@ -2,7 +2,7 @@
 
 ## Abrir el proyecto correcto
 
-Descargar el ZIP de la rama main de VaneSiam/Progra2 y extraerlo en una carpeta nueva y abrir esa carpeta desde
+Descargar el ZIP de la rama correo-pdf-java de VaneSiam/Progra2 (versión integrada; main aún requiere aprobación) y extraerlo en una carpeta nueva y abrir esa carpeta desde
 NetBeans (la que contiene pom.xml). Requiere JDK 26 para JavaFX 26. Ejecutar
 Clean and Build y luego Run Project. No mezclar archivos con un ZIP anterior.
 La versión de `VaneSiam/Progra2` incorpora los cambios de Gmail y mapa del equipo
@@ -31,7 +31,7 @@ Pasos del compañero en Git Bash dentro de Proyectoapi2026 (guardar cambios ante
 ```sh
 git fetch origin
 git switch -c precios-localidad origin/main
-curl -L https://raw.githubusercontent.com/VaneSiam/Progra2/main/backend-para-integrar/precios-localidad/0001-precios-por-localidad.patch -o /tmp/precios.patch
+curl -L https://raw.githubusercontent.com/VaneSiam/Progra2/correo-pdf-java/backend-para-integrar/precios-localidad/0001-precios-por-localidad.patch -o /tmp/precios.patch
 git am /tmp/precios.patch
 npm ci
 npm run test:precios
