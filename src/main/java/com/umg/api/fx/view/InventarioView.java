@@ -31,13 +31,11 @@ public class InventarioView extends HBox implements Recargable {
 
     private final ComboBox<concierto> cbConcierto = new ComboBox<>();
     private final TableView<inventarios_boletos> tabla = new TableView<>();
-    private final TextField txtPrecioVip = new TextField();
-    private final TextField txtPrecioPlatea = new TextField();
-    private final TextField txtPrecioGeneral = new TextField();
+    private final TextField txtPrecio = new TextField();
     private final javafx.beans.property.SimpleBooleanProperty guardando = new javafx.beans.property.SimpleBooleanProperty(false);
 
     public InventarioView() {
-        Filtros.precio(txtPrecioVip); Filtros.precio(txtPrecioPlatea); Filtros.precio(txtPrecioGeneral);
+        Filtros.precio(txtPrecio);
         setSpacing(16);
         setPadding(new Insets(14));
 
@@ -49,7 +47,7 @@ public class InventarioView extends HBox implements Recargable {
         Ui.columnas(tabla,
                 Ui.col("Localidad", i -> nombreDe(i.getId_localidad()), 120),
                 Ui.col("Asiento", i -> asientoDe(i.getId_localidad()), 90),
-                Ui.col("Precio", i -> Ui.dinero(i.getPrecio()), 90),
+                Ui.col("Precio base", i -> Ui.dinero(i.getPrecio()), 90),
                 Ui.col("Disponible", i -> String.valueOf(i.getCantidad_disponible()), 90));
 
         VBox izq = new VBox(10, new Label("Concierto"), cbConcierto, tabla);
@@ -59,19 +57,14 @@ public class InventarioView extends HBox implements Recargable {
 
         Label titulo = new Label("Generar asientos");
         titulo.getStyleClass().add("seccion");
-        Label nota = new Label("Precios base por localidad: 10 VIP, 20 Platea y 70 General. Al vender se suman recargos: VIP 45%, Platea 25%, General 0%.");
+        Label nota = new Label("Un solo precio base para los 100 asientos. Al agregar a la compra: VIP +45%, Platea +25% y General +0%.");
         nota.setWrapText(true);
         Button generar = new Button("Generar asientos");
         generar.getStyleClass().add("boton-primario");
-        generar.setOnAction(e -> guardarPrecios(false));
+        generar.setOnAction(e -> generarAsientos());
         generar.disableProperty().bind(guardando);
-        Button actualizar = new Button("Actualizar precios disponibles");
-        actualizar.setOnAction(e -> guardarPrecios(true));
-        actualizar.disableProperty().bind(guardando);
-
         VBox der = new VBox(12, titulo, nota,
-                Ui.form("VIP base (Q)", txtPrecioVip, "Platea base (Q)", txtPrecioPlatea, "General base (Q)", txtPrecioGeneral),
-                generar, actualizar);
+                Ui.form("Precio base (Q)", txtPrecio), generar);
         der.getStyleClass().add("panel");
         der.setPrefWidth(320);
         der.setMinWidth(320);
@@ -117,20 +110,18 @@ public class InventarioView extends HBox implements Recargable {
         tabla.refresh();
     }
 
-    private void guardarPrecios(boolean actualizar) {
-        concierto c=cbConcierto.getValue();
-        if(c==null){Ui.error("Selecciona un concierto.");return;}
-        if(!actualizar && !tabla.getItems().isEmpty()){Ui.error("Este concierto ya tiene asientos. Usa Actualizar precios disponibles.");return;}
-        final java.math.BigDecimal vip,platea,general;
-        try {vip=Validaciones.precio(txtPrecioVip.getText());platea=Validaciones.precio(txtPrecioPlatea.getText());general=Validaciones.precio(txtPrecioGeneral.getText());}
-        catch(IllegalArgumentException e){Ui.error(e.getMessage());return;}
-        if(actualizar && !Ui.confirmar("¿Actualizar los precios base de los asientos disponibles? Los boletos vendidos conservan su precio."))return;
+    private void generarAsientos() {
+        concierto c = cbConcierto.getValue();
+        if (c == null) { Ui.error("Selecciona un concierto."); return; }
+        if (!tabla.getItems().isEmpty()) { Ui.error("Este concierto ya tiene asientos."); return; }
+        final java.math.BigDecimal precio;
+        try { precio = Validaciones.precio(txtPrecio.getText()); }
+        catch (IllegalArgumentException e) { Ui.error(e.getMessage()); return; }
         guardando.set(true);
-        Async.run(()->{
-            var servicio=new localidadservice();
-            if(actualizar)return servicio.actualizarPrecios(c.getId_concierto(),vip,platea,general);
-            servicio.generarAsientos(c.getId_concierto(),vip,platea,general);return 100;
-        }, n->{guardando.set(false);Ui.info((actualizar?"Precios actualizados: ":"Asientos generados: ")+n);recargar();},
-        msg->{guardando.set(false);Ui.error(msg);});
+        Async.run(() -> {
+            new localidadservice().generarAsientos(c.getId_concierto(), precio);
+            return 100;
+        }, n -> { guardando.set(false); Ui.info("Asientos generados: " + n); recargar(); },
+        msg -> { guardando.set(false); Ui.error(msg); });
     }
 }

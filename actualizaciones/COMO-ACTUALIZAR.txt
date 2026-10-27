@@ -9,6 +9,7 @@ No abras ni importes otro proyecto.
 Esta actualización reemplaza código; no borra conciertos, ventas ni clientes de la API. No contiene contraseñas y no cambia tu configuración de Gmail guardada fuera del proyecto.
 
 CAMBIOS
+- Asientos: un solo precio base al generar; al comprar VIP +45%, Platea +25%, General +0%. Los asientos existentes conservan su precio base.
 - Teléfono de Guatemala: exactamente 8 números. Acepta 12345678, 1234-5678 o 1234 5678 y guarda 12345678.
 - Nombre y apellido: no admiten números, sin mensajes rojos de longitud.
 - NIT: solo números, mensaje corto "Obligatorio". Para CF, usar Consumidor final.

@@ -176,6 +176,9 @@ public class localidadservice {
         return Map.of("id_concierto",id,"precios",Map.of("VIP",vip.toPlainString(),"Plata",platea.toPlainString(),"General",general.toPlainString()));
     }
     public void generarAsientos(int id_concierto, float precio) throws Exception {
+        generarAsientos(id_concierto, java.math.BigDecimal.valueOf(precio));
+    }
+    public void generarAsientos(int id_concierto, java.math.BigDecimal precio) throws Exception {
         Map<String, Object> cuerpo = new LinkedHashMap<>();
         cuerpo.put("id_concierto", id_concierto);
         cuerpo.put("precio", precio);
