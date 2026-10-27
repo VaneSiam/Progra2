@@ -9,7 +9,7 @@ automáticamente después de fallar un envío.
 1. En la cuenta Gmail que ENVIARÁ los comprobantes, activar verificación en dos pasos.
 2. Abrir https://myaccount.google.com/apppasswords y crear una contraseña de aplicación.
 3. En Java abrir **Comprobantes y QR → Configurar Gmail en este equipo**.
-4. Escribir el Gmail remitente y esa contraseña de aplicación de 16 letras. No es la contraseña normal de Google. No compartirla por chat.
+4. Escribir el Gmail remitente y esa contraseña de aplicación generada por Google. No es la contraseña normal de Google. No compartirla por chat.
 5. Pulsar **Probar conexión Gmail (sin enviar correo)**. Comprueba red, STARTTLS y autenticación sin crear una venta ni enviar un mensaje.
 6. Usar **Enviar comprobante por correo / consultar estado** con una venta propia existente, o con cualquier venta si es administrador. Para recuperar la venta #45 no se vuelve a cobrar.
 7. Revisar Enviados del remitente y bandeja/spam del destinatario. Que el servidor acepte el envío no garantiza entrega en bandeja.

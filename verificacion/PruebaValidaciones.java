@@ -6,10 +6,12 @@ public class PruebaValidaciones {
         for(String s:new String[]{"Artista123","123","---"," ","José\nLuis"})rechaza(()->Validaciones.nombre(s,"Nombre",120,true));
         for(String s:new String[]{"","a@b","a..b@dominio.com",".a@dominio.com","a.@dominio.com","a b@dominio.com","a@-dominio.com"})rechaza(()->Validaciones.correo(s));
         Validaciones.correo("persona+ventas@dominio.com");
-        for(String s:new String[]{"1234567","1234-5678","1234567a","+50212345678","1234567890123456"})rechaza(()->Validaciones.telefono(s));
-        Validaciones.telefono("50212345678");
+        for(String s:new String[]{"1234567","123456789","1234567a","+50212345678","50212345678"})rechaza(()->Validaciones.telefono(s));
+        if(!Validaciones.telefono("1234-5678").equals("12345678"))throw new AssertionError();
+        if(!Validaciones.telefono("1234 5678").equals("12345678"))throw new AssertionError();
+        if(!Validaciones.telefono("1234\u00a05678").equals("12345678"))throw new AssertionError();
         for(String s:new String[]{"NaN","Infinity","-1","0","1e3","12.345"})rechaza(()->Validaciones.precio(s));
-        Validaciones.precio("12,50");Validaciones.nit("CF");Validaciones.nit("1234567-K");
+        Validaciones.precio("12,50");Validaciones.nit("CF");Validaciones.nit("12345678");rechaza(()->Validaciones.nit("1234567K"));
         try {
             var mapper=new com.fasterxml.jackson.databind.ObjectMapper();
             String desglose=com.umg.api.service.Tarifas.desglose(mapper.readTree("{\"precio_base\":1000,\"recargo_porcentaje\":45,\"recargo_monto\":450,\"precio_unitario\":1450}"));

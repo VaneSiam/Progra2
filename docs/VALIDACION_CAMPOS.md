@@ -9,8 +9,8 @@ Reglas aplicadas en los formularios JavaFX activos y también en el parche de la
 | País | Opcional, letras sin dígitos si se completa. |
 | Ciudad y tipo de evento | Obligatorios, letras sin dígitos. |
 | Correo del cliente | Obligatorio, formato local@dominio.extensión, sin espacios. No confirma existencia del buzón. |
-| Teléfono | Obligatorio, 8 a 15 dígitos ASCII, sin espacios, guiones ni signo +. |
-| NIT | CF o dígitos con guion opcional y terminación en dígito o K; no consulta SAT. |
+| Teléfono | Exactamente 8 dígitos de Guatemala. Permite espacios y guiones; se guardan solo los 8 números. |
+| NIT | El campo admite solo números. Para CF se marca Consumidor final, sin escribir letras. |
 | Precio | Mayor que cero, hasta ocho enteros y dos decimales. Rechaza NaN, infinito y notación científica. Java acepta punto o coma decimal y envía número. |
 | Usuario de acceso | Letras ASCII, números, punto, guion y guion bajo. |
 | Título, recinto y dirección | Admiten números: Gira 2026, Estadio 2, Zona 10. Longitud limitada y sin controles. |
@@ -21,7 +21,7 @@ Las longitudes se limitan según cada campo. La contraseña conserva su polític
 al menos seis y hasta 200 caracteres y admite números y símbolos.
 
 Las restricciones de nombres y teléfono se aplican al escribir y pegar en campos
-con foco. Los valores heredados se muestran al seleccionar un registro, aunque
+con foco. Nombre y apellido no muestran mensajes rojos; el NIT vacío muestra solo «Obligatorio». Los valores heredados se muestran al seleccionar un registro, aunque
 sean inválidos, para poder corregirlos. Guardar siempre valida el valor completo:
 no se borra ni se modifica automáticamente ningún registro existente.
 

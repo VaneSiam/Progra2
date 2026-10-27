@@ -52,7 +52,7 @@ public class CorreoService {
             throw new Exception("Configura la cuenta remitente en Comprobantes y QR > Configurar Gmail.");
         }
         com.umg.api.validacion.Validaciones.correo(usuario);
-        if(!clave.matches("[a-zA-Z]{16}"))throw new Exception("Gmail requiere su contraseña de aplicación de 16 letras. Corrígela en Configurar Gmail.");
+
     }
 
     /** Para pruebas o para usar otro servidor SMTP con los mismos datos. */
@@ -160,7 +160,7 @@ public class CorreoService {
     public static void configurar(String remitente,String claveAplicacion) throws Exception {
         remitente=com.umg.api.validacion.Validaciones.correo(remitente);
         String clave=quitarEspacios(claveAplicacion);
-        if(!clave.matches("[a-zA-Z]{16}"))throw new IllegalArgumentException("Usa la contraseña de aplicación de Gmail de 16 letras, no la contraseña normal.");
+        if(clave.isEmpty())throw new IllegalArgumentException("Obligatorio");
         Properties p=new Properties();p.setProperty("usuario",remitente);p.setProperty("clave",clave);
         p.setProperty("host","smtp.gmail.com");p.setProperty("puerto","587");
         Path archivo=archivoConfiguracion();Files.createDirectories(archivo.getParent());Path temporal=Files.createTempFile(archivo.getParent(),".correo-",".tmp");
@@ -198,6 +198,6 @@ public class CorreoService {
 
     // Google muestra la contraseña de aplicación en grupos de 4 letras separados por espacios
     private static String quitarEspacios(String s) {
-        return s == null ? "" : s.replace(" ", "");
+        return s == null ? "" : s.replaceAll("[\\s\\p{Z}\\p{Cf}]", "");
     }
 }

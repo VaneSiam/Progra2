@@ -61,7 +61,7 @@ No se promete entrega si no se configuró y verificó Gmail en esa computadora.
 1. En el Gmail que ENVIARÁ los comprobantes, activar verificación en dos pasos.
 2. Abrir https://myaccount.google.com/apppasswords y crear una contraseña de aplicación.
 3. En Java ir a Comprobantes y QR > Configurar Gmail en este equipo.
-4. Ingresar correo remitente y contraseña de aplicación de 16 letras. No usar la contraseña normal de Gmail. No pegarla en el chat.
+4. Ingresar correo remitente y contraseña de aplicación generada por Google. No usar la contraseña normal de Gmail. No pegarla en el chat.
 5. Pulsar Probar conexión Gmail (sin enviar correo) para verificar TLS y autenticación. Luego pulsar Enviar comprobante por correo / consultar estado e ingresar una venta propia ya registrada (por ejemplo la #43, si se está usando el vendedor correcto o administrador). No volver a cobrar.
 6. Revisar tanto Gmail Enviados del remitente como bandeja/spam del destinatario.
 

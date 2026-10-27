@@ -25,6 +25,7 @@ public class ClientesView extends HBox implements Recargable {
     private final TextField txtTelefono = new TextField();
     private final TextField txtCorreo = new TextField();
     private final TextField txtDireccion = new TextField();
+    private final CheckBox chkConsumidorFinal = new CheckBox("Consumidor final (sin NIT)");
     private final CheckBox chkActivo = new CheckBox("Activo");
     private cliente seleccionado;
     private final java.util.Map<String,Label> erroresCampo=new java.util.LinkedHashMap<>();
@@ -35,8 +36,9 @@ public class ClientesView extends HBox implements Recargable {
 
     public ClientesView() {
         Filtros.nombre(txtNombre,100); Filtros.nombre(txtApellido,100);
-        Filtros.telefono(txtTelefono); Filtros.correo(txtCorreo);
-        txtTelefono.setPromptText("8 a 15 dígitos"); txtCorreo.setPromptText("nombre@dominio.com (obligatorio)");
+        Filtros.telefono(txtTelefono); Filtros.nit(txtNit); Filtros.correo(txtCorreo);
+        chkConsumidorFinal.selectedProperty().addListener((o,a,b)->{txtNit.setDisable(b);actualizarValidacion();});
+        txtTelefono.setPromptText("1234-5678"); txtCorreo.setPromptText("nombre@dominio.com (obligatorio)");
         setSpacing(16);
         setPadding(new Insets(14));
 
@@ -68,9 +70,9 @@ public class ClientesView extends HBox implements Recargable {
         Button eliminar = new Button("Eliminar");
         eliminar.getStyleClass().add("boton-peligro");
         eliminar.setOnAction(e -> eliminar());
-        Label reglas=new Label("Completa nombre, apellido, NIT o CF, teléfono de 8 a 15 dígitos y correo válido antes de guardar.");reglas.setWrapText(true);
+        Label reglas=new Label("Teléfono de Guatemala: 8 dígitos. Se permiten espacios o guiones.");reglas.setWrapText(true);
         var formulario=Ui.form("Nombre *", campoValidado("nombre",txtNombre), "Apellido *", campoValidado("apellido",txtApellido),
-                        "NIT o CF *", campoValidado("nit",txtNit), "Teléfono *", campoValidado("telefono",txtTelefono),
+                        "NIT *", new VBox(5,campoValidado("nit",txtNit),chkConsumidorFinal), "Teléfono *", campoValidado("telefono",txtTelefono),
                         "Correo *", campoValidado("correo",txtCorreo), "Dirección", campoValidado("direccion",txtDireccion), "", chkActivo);
         var etiquetas=new javafx.scene.layout.ColumnConstraints(92);
         var campos=new javafx.scene.layout.ColumnConstraints();campos.setMinWidth(0);campos.setHgrow(Priority.ALWAYS);
@@ -94,7 +96,8 @@ public class ClientesView extends HBox implements Recargable {
     private void cargarForm(cliente c) {
         txtNombre.setText(vacio(c.getNombre()));
         txtApellido.setText(vacio(c.getApellido()));
-        txtNit.setText(vacio(c.getNit()));
+        chkConsumidorFinal.setSelected("CF".equalsIgnoreCase(vacio(c.getNit()).trim()));
+        txtNit.setText(chkConsumidorFinal.isSelected()?"":vacio(c.getNit()));
         txtTelefono.setText(vacio(c.getTelefono()));
         txtCorreo.setText(vacio(c.getCorreo()));
         txtDireccion.setText(vacio(c.getDireccion()));
@@ -105,7 +108,7 @@ public class ClientesView extends HBox implements Recargable {
     private void limpiar() {
         tabla.getSelectionModel().clearSelection();
         seleccionado = null;
-        mostrarTodosLosErrores=false;
+        mostrarTodosLosErrores=false;chkConsumidorFinal.setSelected(false);
         for (TextField t : new TextField[]{txtNombre, txtApellido, txtNit, txtTelefono, txtCorreo, txtDireccion}) t.clear();
         chkActivo.setSelected(true);actualizarValidacion();
     }
@@ -120,7 +123,7 @@ public class ClientesView extends HBox implements Recargable {
     }
     private cliente borrador() {
         return new cliente(seleccionado==null?0:seleccionado.getId(),txtNombre.getText().trim(),txtApellido.getText().trim(),
-            txtDireccion.getText().trim(),txtCorreo.getText().trim(),txtTelefono.getText().trim(),txtNit.getText().trim(),chkActivo.isSelected());
+            txtDireccion.getText().trim(),txtCorreo.getText().trim(),txtTelefono.getText().trim(),chkConsumidorFinal.isSelected()?"CF":txtNit.getText().trim(),chkActivo.isSelected());
     }
     private void actualizarValidacion() {
         var errores=com.umg.api.validacion.ValidacionCliente.errores(borrador());
@@ -128,8 +131,8 @@ public class ClientesView extends HBox implements Recargable {
         var campos=java.util.Map.of("nombre",txtNombre,"apellido",txtApellido,"nit",txtNit,"telefono",txtTelefono,"correo",txtCorreo,"direccion",txtDireccion);
         erroresCampo.forEach((nombre,label)->{
             TextField campo=campos.get(nombre);
-            boolean visible=errores.containsKey(nombre) && (mostrarTodosLosErrores || !campo.getText().isBlank() || campo.isFocused());
-            label.setText(visible?errores.get(nombre):"");label.setVisible(visible);label.setManaged(visible);
+            boolean visible=!nombre.equals("nombre") && !nombre.equals("apellido") && errores.containsKey(nombre) && (nombre.equals("nit") || mostrarTodosLosErrores || !campo.getText().isBlank() || campo.isFocused());
+            label.setText(visible?(nombre.equals("nit")?"Obligatorio":errores.get(nombre)):"");label.setVisible(visible);label.setManaged(visible);
             campo.setStyle(visible?"-fx-border-color: #c62828;":"");
         });
     }
@@ -145,7 +148,7 @@ public class ClientesView extends HBox implements Recargable {
                 Validaciones.nombre(txtApellido.getText(),"Apellido",100,true),
                 Validaciones.texto(txtDireccion.getText(),"Dirección",255,false),
                 Validaciones.correo(txtCorreo.getText()),Validaciones.telefono(txtTelefono.getText()),
-                Validaciones.nit(txtNit.getText()),chkActivo.isSelected());
+                Validaciones.nit(chkConsumidorFinal.isSelected()?"CF":txtNit.getText()),chkActivo.isSelected());
         } catch (IllegalArgumentException ex) { Ui.error(ex.getMessage()); return; }
         guardando.set(true);
         Async.run(() -> sel == null
