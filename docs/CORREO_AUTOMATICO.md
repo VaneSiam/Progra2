@@ -1,3 +1,5 @@
+> **Integración actual:** también se conserva el SMTP directo que agregó el equipo. Si la API no entrega token de comprobantes, la aplicación usa Gmail local configurado desde la pantalla. Consultar [ENTREGA_HOY.md](ENTREGA_HOY.md) para los pasos actuales. No cambia de transporte automáticamente después de un fallo.
+
 # Comprobante automático por correo
 
 Después de confirmar la compra, el cliente genera con JasperReports el mismo PDF

@@ -9,8 +9,24 @@ import java.util.Map;
 /** Solo consulta y envía una venta existente: nunca registra ni cobra boletos. */
 public class ComprobanteCorreoService {
     public String enviar(int id, Integer vendedorPermitido) throws Exception {
-        if (!Sesion.activa() || Sesion.token() == null)
-            throw new IllegalStateException("Falta activar el backend de correo o iniciar sesión nuevamente. El comprobante queda pendiente.");
+        if (!Sesion.activa()) throw new IllegalStateException("Inicia sesión primero.");
+        // El equipo incorporó SMTP directo: conservarlo si no hay sesión del endpoint de correo.
+        // Nunca cambiar de transporte tras un fallo: podría duplicarse un envío ya aceptado.
+        if (Sesion.token() == null) {
+            if(!CorreoService.configurado()) throw new IllegalStateException("Correo pendiente: configura Gmail en Comprobantes y QR > Configurar Gmail. Archivo local: "+CorreoService.archivoConfiguracion());
+            var documento=new ComprobanteService().cargar(id,vendedorPermitido);
+            String destino=com.umg.api.validacion.Validaciones.correo(documento.correo());
+            // Generar antes de reservar, para que errores de datos o PDF no bloqueen el envío.
+            java.nio.file.Path pdf=java.nio.file.Files.createTempFile("boletos-venta-"+id+"-",".pdf");
+            try {
+                BoletosPdf.exportar(documento,pdf);
+                CorreoService smtp=new CorreoService();
+                return RegistroCorreoLocal.ejecutar(id,()->smtp.enviar(destino,
+                    "Comprobante de tu compra · Venta #"+id,
+                    "Hola "+documento.cliente()+". Adjuntamos el comprobante y tus boletos con QR. Total pagado: Q"+documento.total().setScale(2)+". Documento académico, no fiscal.",
+                    pdf,"boletos-venta-"+id+".pdf"));
+            } finally {java.nio.file.Files.deleteIfExists(pdf);}
+        }
         String ruta = "/comprobantes/" + id + "/correo";
         String estado = HttpJson.get(ruta).path("estado").asText();
         if ("aceptado".equals(estado)) return "Gmail ya había aceptado el comprobante; no se duplicó el envío.";

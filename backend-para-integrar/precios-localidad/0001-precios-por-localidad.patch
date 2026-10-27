@@ -1,0 +1,341 @@
+From 37c9d602b56f79a31807f086037cd7dcbe8da5f6 Mon Sep 17 00:00:00 2001
+From: VaneSiam <karlasiam18@gmail.com>
+Date: Tue, 27 Oct 2026 12:28:04 +0000
+Subject: [PATCH] Permite generar y actualizar precios independientes por
+ localidad
+
+---
+ PRECIOS_POR_LOCALIDAD.md                      | 39 +++++++++++++
+ .../controller/detalle_ventas.controller.js   | 18 ++----
+ .../models/detalle_ventas.model.js            |  3 +
+ .../route/localidades.route.js                |  1 +
+ .../service/migrar-tarifas.js                 |  8 +++
+ .../service/precios-localidad.js              | 56 +++++++++++++++++++
+ Proyecto_final_progra2/service/tarifas.js     |  8 +++
+ package.json                                  |  9 +--
+ server.js                                     |  6 +-
+ test/precios-localidad.test.cjs               | 53 ++++++++++++++++++
+ test/tarifas.test.cjs                         |  8 +++
+ 11 files changed, 189 insertions(+), 20 deletions(-)
+ create mode 100644 PRECIOS_POR_LOCALIDAD.md
+ create mode 100644 Proyecto_final_progra2/service/migrar-tarifas.js
+ create mode 100644 Proyecto_final_progra2/service/precios-localidad.js
+ create mode 100644 Proyecto_final_progra2/service/tarifas.js
+ create mode 100644 test/precios-localidad.test.cjs
+ create mode 100644 test/tarifas.test.cjs
+
+diff --git a/PRECIOS_POR_LOCALIDAD.md b/PRECIOS_POR_LOCALIDAD.md
+new file mode 100644
+index 0000000..2bc1c7e
+--- /dev/null
++++ b/PRECIOS_POR_LOCALIDAD.md
+@@ -0,0 +1,39 @@
++# Activar precios por localidad para la presentación
++
++Parche independiente de los cambios anteriores de correo. Se basa en
++`28381a89419bafc40190613e201725ca1989e9e2` de Proyectoapi2026 y añade un módulo,
++una llamada de registro en localidades.route.js y pruebas. No cambia el correo ni las contraseñas. Conserva las tasas de recargo y añade tres columnas numéricas opcionales para guardar su desglose histórico.
++
++1. Guardar cambios pendientes y crear una rama desde la versión actual de la API.
++2. Aplicar `git am /ruta/0001-precios-por-localidad.patch`. Si hay conflictos,
++   resolverlos conservando los cambios del equipo; no forzar ni restaurar archivos.
++3. Ejecutar `npm ci` y `npm run test:precios` (cuatro pruebas con BD simulada).
++4. Publicar la rama, revisar/fusionar a la rama desplegada en Render y redesplegar.
++5. Verificar `GET https://proyectoapi2026.onrender.com/api/localidades/configuracion-precios`:
++   debe responder `precios_por_localidad: true`.
++6. Abrir el Java nuevo: Generar asientos permite precios base VIP, Platea y General.
++
++El nombre interno histórico `Plata` equivale a Platea en la interfaz. No cambiar
++ese identificador sin migrar también la lógica de recargos del equipo.
++
++Nuevos endpoints:
++- GET /api/localidades/configuracion-precios: capacidad, moneda y localidades.
++- POST /api/localidades/generar-por-localidad: id_concierto y precios {VIP,Plata,General}.
++- PUT /api/localidades/precios/:id: precios {VIP,Plata,General}; solo asientos disponibles.
++
++Se crean 100 asientos: 10 VIP, 20 Platea y 70 General. La generación usa una
++transacción y bloquea el concierto para evitar duplicados concurrentes. No se
++permite generar otro lote si el concierto ya tiene inventario. La actualización
++no toca inventario vendido ni detalles de ventas; aplica el precio nuevo a ventas
++futuras de los asientos disponibles. Las cuatro pruebas usan repositorio simulado;
++la transacción real PostgreSQL debe verificarse en la BD de pruebas del equipo.
++
++Estos endpoints conservan el modelo de acceso de las rutas heredadas de catálogos;
++la autorización general del backend sigue siendo responsabilidad de su integración.
++No se necesita desplegar el parche OAuth/correo para usar esta función.
++
++El arranque añade precio_base, recargo_porcentaje y recargo_monto con ALTER TABLE
++ADD COLUMN IF NOT EXISTS. Se requiere permiso ALTER en PostgreSQL; no borra datos
++ni rellena ventas anteriores con precios actuales. El servicio espera la migración
++antes de aceptar solicitudes. Las ventas nuevas conservan el desglose que imprime
++el PDF actualizado. Las antiguas sin esos campos indican que no quedó registrado.
+diff --git a/Proyecto_final_progra2/controller/detalle_ventas.controller.js b/Proyecto_final_progra2/controller/detalle_ventas.controller.js
+index c2cb26c..5605e4e 100644
+--- a/Proyecto_final_progra2/controller/detalle_ventas.controller.js
++++ b/Proyecto_final_progra2/controller/detalle_ventas.controller.js
+@@ -122,19 +122,8 @@ for (let idInv of ids_inventarios) {
+         
+     }
+ 
+-    const preciosN = inventarioID.precio;
+-    const nombreLocalidad = LocalidadID.nombre ? LocalidadID.nombre.trim() : "";
+-    let totalpagar = 0;
+-
+-    if (nombreLocalidad === "VIP") {
+-        const precios = preciosN * 0.45;
+-        totalpagar = preciosN + precios;
+-    } else if (nombreLocalidad === "Plata") {
+-        const precios = preciosN * 0.25;
+-        totalpagar = preciosN + precios;
+-    } else {
+-        totalpagar = preciosN;
+-    }
++    const tarifa = require('../service/tarifas')(inventarioID.precio, LocalidadID.nombre);
++    const totalpagar = tarifa.precio_unitario;
+ 
+     Totalgeneral += totalpagar;
+   
+@@ -146,6 +135,9 @@ detallesAInsertar.push({
+                     id_cliente: req.body.id_cliente,
+                     asiento: LocalidadID.asiento,
+                     cantidad: 1, 
++                    precio_base: tarifa.precio_base,
++                    recargo_porcentaje: tarifa.recargo_porcentaje,
++                    recargo_monto: tarifa.recargo_monto,
+                     precio_unitario: totalpagar,
+                     subtotal: totalpagar
+                 },
+diff --git a/Proyecto_final_progra2/models/detalle_ventas.model.js b/Proyecto_final_progra2/models/detalle_ventas.model.js
+index 868cd22..b84261e 100644
+--- a/Proyecto_final_progra2/models/detalle_ventas.model.js
++++ b/Proyecto_final_progra2/models/detalle_ventas.model.js
+@@ -31,6 +31,9 @@ module.exports = (sequelize, Sequelize) =>{
+             type: Sequelize.FLOAT,
+             allowNull: false
+         },
++        precio_base: {type: Sequelize.DECIMAL(10,2), allowNull:true},
++        recargo_porcentaje: {type: Sequelize.DECIMAL(5,2), allowNull:true},
++        recargo_monto: {type: Sequelize.DECIMAL(10,2), allowNull:true},
+         subtotal:{
+             type: Sequelize.FLOAT,
+             allowNull: false
+diff --git a/Proyecto_final_progra2/route/localidades.route.js b/Proyecto_final_progra2/route/localidades.route.js
+index 28e8b18..f5783f6 100644
+--- a/Proyecto_final_progra2/route/localidades.route.js
++++ b/Proyecto_final_progra2/route/localidades.route.js
+@@ -1,4 +1,5 @@
+ module.exports = app => {
++    require('../service/precios-localidad').registrar(app,require('../models'));
+     const localidades = require("../controller/localidades.controller.js");
+     var router = require("express").Router();
+     
+diff --git a/Proyecto_final_progra2/service/migrar-tarifas.js b/Proyecto_final_progra2/service/migrar-tarifas.js
+new file mode 100644
+index 0000000..9eb3c56
+--- /dev/null
++++ b/Proyecto_final_progra2/service/migrar-tarifas.js
+@@ -0,0 +1,8 @@
++// Migración aditiva e idempotente para conservar tarifas históricas; sin backfill.
++module.exports=async db=>{
++ const tabla=db.sequelize.getQueryInterface().queryGenerator.quoteTable(db.d_ventas.getTableName());
++ await db.sequelize.query(`ALTER TABLE ${tabla}
++ ADD COLUMN IF NOT EXISTS precio_base NUMERIC(10,2),
++ ADD COLUMN IF NOT EXISTS recargo_porcentaje NUMERIC(5,2),
++ ADD COLUMN IF NOT EXISTS recargo_monto NUMERIC(10,2)`);
++};
+diff --git a/Proyecto_final_progra2/service/precios-localidad.js b/Proyecto_final_progra2/service/precios-localidad.js
+new file mode 100644
+index 0000000..864611d
+--- /dev/null
++++ b/Proyecto_final_progra2/service/precios-localidad.js
+@@ -0,0 +1,56 @@
++const fallo=(status,message)=>{throw Object.assign(new Error(message),{status});};
++function precios(body) {
++ const p=body?.precios;
++ if(!p || typeof p!=='object' || Array.isArray(p))fallo(400,'Completa los precios de VIP, Platea y General.');
++ const salida={};
++ for(const tipo of ['VIP','Plata','General']) {
++  const v=p[tipo];
++  if(!/^[0-9]{1,8}(?:\.[0-9]{1,2})?$/.test(String(v)) || !Number.isFinite(Number(v)) || Number(v)<=0)
++   fallo(400,'Precio de '+(tipo==='Plata'?'Platea':tipo)+': mayor que cero y hasta dos decimales.');
++  salida[tipo]=Number(v).toFixed(2);
++ }
++ return salida;
++}
++function idValido(v) {if(typeof v==='boolean' || !/^[1-9][0-9]*$/.test(String(v)) || !Number.isSafeInteger(Number(v)))fallo(400,'Selecciona un concierto válido.');return Number(v);}
++function registrar(app,db) {
++ const responder=(res,e)=>res.status(e.status || 500).json({message:e.status?e.message:'No se guardaron los precios o asientos. Revisa la conexión e inténtalo nuevamente.'});
++ app.get('/api/localidades/configuracion-precios',(_q,res)=>res.json({precios_por_localidad:true,localidades:['VIP','Plata','General'],moneda:'GTQ'}));
++ app.post('/api/localidades/generar-por-localidad',async(req,res)=>{
++  try {
++   const id=idValido(req.body?.id_concierto), tarifas=precios(req.body);
++   const resultado=await db.sequelize.transaction(async t=>{
++    const concierto=await db.concierto.findByPk(id,{transaction:t,lock:t.LOCK.UPDATE});
++    if(!concierto)fallo(404,'El concierto no existe.');
++    if(await db.i_boletos.count({where:{id_concierto:id},transaction:t}))fallo(409,'Este concierto ya tiene asientos. Usa Actualizar precios disponibles.');
++    const filas=[];
++    for(let n=0;n<100;n++)filas.push({nombre:n<10?'VIP':n<30?'Plata':'General',asiento:String.fromCharCode(65+Math.floor(n/10))+'-'+(n%10+1),estado:true});
++    const localidades=await db.localidades.bulkCreate(filas,{transaction:t,returning:true});
++    await db.i_boletos.bulkCreate(localidades.map(l=>({id_concierto:id,id_localidad:l.id_localidad,precio:tarifas[l.nombre],cantidad_total:1,cantidad_disponible:1})),{transaction:t});
++    return {asientos:100,distribucion:{VIP:10,Plata:20,General:70}};
++   });
++   res.status(201).json({precios_por_localidad:true,...resultado,precios:tarifas});
++  }catch(e){responder(res,e);}
++ });
++ app.put('/api/localidades/precios/:id',async(req,res)=>{
++  try {
++   const id=idValido(req.params.id),tarifas=precios(req.body);
++   const actualizados=await db.sequelize.transaction(async t=>{
++    const concierto=await db.concierto.findByPk(id,{transaction:t,lock:t.LOCK.UPDATE});
++    if(!concierto)fallo(404,'El concierto no existe.');
++    const inventarios=await db.i_boletos.findAll({where:{id_concierto:id},transaction:t,lock:t.LOCK.UPDATE});
++    const libres=inventarios.filter(i=>Number(i.cantidad_disponible)>0);
++    if(!libres.length)fallo(409,'No hay asientos disponibles para actualizar.');
++    const localidades=await db.localidades.findAll({where:{id_localidad:libres.map(i=>i.id_localidad)},transaction:t});
++    const tipos=new Map(localidades.map(l=>[Number(l.id_localidad),l.nombre]));
++    for(const tipo of ['VIP','Plata','General']) {
++     const ids=libres.filter(i=>tipos.get(Number(i.id_localidad))===tipo).map(i=>i.id_inventario);
++     if(ids.length)await db.i_boletos.update({precio:tarifas[tipo]},{where:{id_inventario:ids},transaction:t});
++    }
++    if(libres.some(i=>!Object.hasOwn(tarifas,tipos.get(Number(i.id_localidad)))))fallo(409,'Hay localidades desconocidas; no se cambió ningún precio.');
++    return libres.length;
++   });
++   res.json({precios_por_localidad:true,actualizados,precios:tarifas});
++  }catch(e){responder(res,e);}
++ });
++}
++module.exports={registrar,precios};
+diff --git a/Proyecto_final_progra2/service/tarifas.js b/Proyecto_final_progra2/service/tarifas.js
+new file mode 100644
+index 0000000..71479df
+--- /dev/null
++++ b/Proyecto_final_progra2/service/tarifas.js
+@@ -0,0 +1,8 @@
++module.exports = function tarifa(base,localidad) {
++ const precio=Number(base);
++ if(!Number.isFinite(precio) || precio<0)throw new Error('Precio base inválido.');
++ const porcentaje=String(localidad).trim()==='VIP'?45:String(localidad).trim()==='Plata'?25:0;
++ const centavos=Math.round(precio*100);
++ const cargo=Math.round(centavos*porcentaje/100);
++ return {precio_base:centavos/100,recargo_porcentaje:porcentaje,recargo_monto:cargo/100,precio_unitario:(centavos+cargo)/100};
++};
+diff --git a/package.json b/package.json
+index e59c73f..7103dbd 100644
+--- a/package.json
++++ b/package.json
+@@ -6,10 +6,11 @@
+   "author": "",
+   "type": "commonjs",
+   "main": "server.js",
+- "scripts": {
+-   "start": "node server.js",
+-   "test": "echo \"Error: no test specified\" && exit 1"
+- },
++  "scripts": {
++    "start": "node server.js",
++    "test": "echo \"Error: no test specified\" && exit 1",
++    "test:precios": "node --test test/precios-localidad.test.cjs test/tarifas.test.cjs"
++  },
+   "dependencies": {
+     "cors": "^2.8.6",
+     "dotenv": "^18.0.8",
+diff --git a/server.js b/server.js
+index 12939ae..43fa864 100644
+--- a/server.js
++++ b/server.js
+@@ -18,7 +18,7 @@ app.use(bodyParser.json());
+ app.use(bodyParser.urlencoded({ extended: true }));
+ 
+ const db = require("./Proyecto_final_progra2/models");
+-db.sequelize.sync();
++const tablasListas=db.sequelize.sync().then(()=>require('./Proyecto_final_progra2/service/migrar-tarifas')(db));
+ 
+ app.get("/", (req, res) => {
+   res.json({ message: "UMG Web Application" });
+@@ -34,6 +34,6 @@ require("./Proyecto_final_progra2/route/usuario.route")(app);
+ require("./Proyecto_final_progra2/route/ventas.route")(app);
+ require("./Proyecto_final_progra2/route/cliente.route")(app);
+ const PORT = process.env.PORT || 8081;
+-app.listen(PORT, () => {
++tablasListas.then(()=>app.listen(PORT, () => {
+   console.log(`Server is running on port ${PORT}.`);
+-});
+\ No newline at end of file
++})).catch(()=>{console.error("No se pudo inicializar la base de datos.");process.exitCode=1;});
+\ No newline at end of file
+diff --git a/test/precios-localidad.test.cjs b/test/precios-localidad.test.cjs
+new file mode 100644
+index 0000000..a687325
+--- /dev/null
++++ b/test/precios-localidad.test.cjs
+@@ -0,0 +1,53 @@
++const {test}=require('node:test');const assert=require('node:assert/strict');const express=require('express');
++const {registrar}=require('../Proyecto_final_progra2/service/precios-localidad');
++function fixture() {
++ let localidades=[],inventarios=[],siguiente=1;let siguienteInv=1;let forzarFallo=false;let gate=Promise.resolve();
++ const db={
++ sequelize:{transaction:async fn=>{
++  const anterior=gate;let liberar;gate=new Promise(r=>liberar=r);await anterior;
++  const copia=structuredClone({localidades,inventarios});
++  try{return await fn({LOCK:{UPDATE:'UPDATE'}});}catch(e){localidades=copia.localidades;inventarios=copia.inventarios;throw e;}finally{liberar();}
++ }},
++ concierto:{findByPk:async id=>id===1?{id_concierto:1}:null},
++ localidades:{bulkCreate:async filas=>{localidades.push(...filas.map(f=>({...f,id_localidad:siguiente++})));return localidades;},findAll:async()=>localidades},
++ i_boletos:{count:async()=>inventarios.length,bulkCreate:async filas=>{if(forzarFallo)throw new Error('fallo simulado');inventarios.push(...filas.map(f=>({...f,id_inventario:siguienteInv++})));},
++ findAll:async()=>inventarios,
++ update:async(values,{where})=>{let n=0;for(const fila of inventarios)if(where.id_inventario.includes(fila.id_inventario)){Object.assign(fila,values);n++;}return [n];}}
++ };
++ return {db,get localidades(){return localidades;},get inventarios(){return inventarios;},set fallo(v){forzarFallo=v;}};
++}
++async function servidor(f,run) {
++ const app=express();app.use(express.json());registrar(app,f.db);const s=app.listen(0,'127.0.0.1');await new Promise(r=>s.once('listening',r));
++ const req=async(path,method='GET',body)=>{const r=await fetch('http://127.0.0.1:'+s.address().port+'/api/localidades/'+path,{method,headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});return {status:r.status,body:await r.json()};};
++ try{await run(req);}finally{await new Promise(r=>s.close(r));}
++}
++const body={id_concierto:1,precios:{VIP:'1000',Plata:'500',General:'150'}};
++test('genera exactamente 100 asientos con precios separados y evita duplicarlos',async()=>{
++ const f=fixture();await servidor(f,async req=>{
++  assert.equal((await req('configuracion-precios')).body.precios_por_localidad,true);
++  assert.equal((await req('generar-por-localidad','POST',body)).status,201);
++  assert.equal(f.localidades.length,100);assert.equal(f.inventarios.length,100);
++  for(const [tipo,n,precio]of [['VIP',10,'1000.00'],['Plata',20,'500.00'],['General',70,'150.00']]){
++   const ids=new Set(f.localidades.filter(l=>l.nombre===tipo).map(l=>l.id_localidad));assert.equal(ids.size,n);
++   assert(f.inventarios.filter(i=>ids.has(i.id_localidad)).every(i=>i.precio===precio && i.cantidad_disponible===1));
++  }
++  assert.equal((await req('generar-por-localidad','POST',body)).status,409);assert.equal(f.inventarios.length,100);
++ });
++});
++test('falla antes de escribir si el precio no es válido; revierte si falla inventario',async()=>{
++ const f=fixture();await servidor(f,async req=>{
++  assert.equal((await req('generar-por-localidad','POST',{...body,precios:{VIP:'NaN',Plata:10,General:20}})).status,400);assert.equal(f.localidades.length,0);
++  f.fallo=true;assert.equal((await req('generar-por-localidad','POST',body)).status,500);assert.equal(f.localidades.length,0);assert.equal(f.inventarios.length,0);
++ });
++});
++test('actualiza solo asientos disponibles y conserva precios de vendidos',async()=>{
++ const f=fixture();await servidor(f,async req=>{
++  await req('generar-por-localidad','POST',body);f.inventarios[0].cantidad_disponible=0;
++  const r=await req('precios/1','PUT',{precios:{VIP:1200,Plata:650,General:200}});
++  assert.equal(r.body.actualizados,99);assert.equal(f.inventarios[0].precio,'1000.00');assert.equal(f.inventarios[1].precio,'1200.00');
++  assert.equal(f.inventarios[10].precio,'650.00');assert.equal(f.inventarios[30].precio,'200.00');
++ });
++});
++test('dos solicitudes concurrentes solo generan un lote',async()=>{
++ const f=fixture();await servidor(f,async req=>{const rs=await Promise.all([req('generar-por-localidad','POST',body),req('generar-por-localidad','POST',body)]);assert.deepEqual(rs.map(r=>r.status).sort(),[201,409]);assert.equal(f.inventarios.length,100);});
++});
+diff --git a/test/tarifas.test.cjs b/test/tarifas.test.cjs
+new file mode 100644
+index 0000000..b426bb5
+--- /dev/null
++++ b/test/tarifas.test.cjs
+@@ -0,0 +1,8 @@
++const {test}=require('node:test');const assert=require('node:assert/strict');const tarifa=require('../Proyecto_final_progra2/service/tarifas');
++test('VIP 45%, Plata 25%, General sin recargo; total visible y snapshot en centavos',()=>{
++ assert.deepEqual(tarifa(1000,'VIP'),{precio_base:1000,recargo_porcentaje:45,recargo_monto:450,precio_unitario:1450});
++ assert.equal(tarifa(1000,'VIP').precio_unitario+tarifa(150,'General').precio_unitario,1600);
++ assert.deepEqual(tarifa(100,'Plata'),{precio_base:100,recargo_porcentaje:25,recargo_monto:25,precio_unitario:125});
++ assert.equal(tarifa(0.10,'VIP').precio_unitario,0.15);
++ assert.throws(()=>tarifa('NaN','VIP'));
++});
+-- 
+2.52.0
+

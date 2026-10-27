@@ -8,3 +8,7 @@ nbproject/private/
 .idea/
 .vscode/
 .DS_Store
+
+correo.properties
+.svb-correo/
+.correo-*.tmp

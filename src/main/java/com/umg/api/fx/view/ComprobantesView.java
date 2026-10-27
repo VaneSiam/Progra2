@@ -34,6 +34,30 @@ public class ComprobantesView extends VBox {
         });
         Label nota = new Label("El comprobante se envía automáticamente después de vender. Aquí puedes consultar o reintentar sin volver a cobrar.");
         nota.setWrapText(true);
-        getChildren().addAll(titulo,ayuda,guardar,nota,enviar);
+        Label estadoCorreo = new Label();
+        estadoCorreo.setWrapText(true);
+        Runnable refrescarEstado = () -> estadoCorreo.setText(com.umg.api.config.Sesion.token()!=null
+            ? "Correo: mediante API. El servidor administra el envío."
+            : (com.umg.api.service.CorreoService.configurado() ? "Gmail local configurado. " : "Gmail local sin configurar. ")
+                + "Archivo: " + com.umg.api.service.CorreoService.archivoConfiguracion());
+        Button configurar = new Button("Configurar Gmail en este equipo");
+        configurar.setOnAction(e -> {
+            javafx.scene.control.Dialog<javafx.util.Pair<String,String>> dialogo = new javafx.scene.control.Dialog<>();
+            dialogo.initOwner(getScene().getWindow()); dialogo.setTitle("Configurar Gmail");
+            dialogo.setHeaderText("Cuenta remitente y contraseña de aplicación de Gmail (16 letras)");
+            var usuario = new javafx.scene.control.TextField(); usuario.setPromptText("remitente@gmail.com");
+            var clave = new javafx.scene.control.PasswordField(); clave.setPromptText("Contraseña de aplicación, no tu contraseña normal");
+            var aviso = new Label("Activa la verificación en dos pasos y crea la clave en myaccount.google.com/apppasswords. Se guarda solo en este equipo.");aviso.setWrapText(true);
+            dialogo.getDialogPane().setContent(new VBox(10,aviso,usuario,clave));
+            dialogo.getDialogPane().getButtonTypes().addAll(javafx.scene.control.ButtonType.OK,javafx.scene.control.ButtonType.CANCEL);
+            dialogo.setResultConverter(b -> b==javafx.scene.control.ButtonType.OK ? new javafx.util.Pair<>(usuario.getText(),clave.getText()) : null);
+            dialogo.showAndWait().ifPresent(datos -> {
+                try {com.umg.api.service.CorreoService.configurar(datos.getKey(),datos.getValue());refrescarEstado.run();com.umg.api.fx.util.Ui.info("Configuración guardada. Envía una venta de prueba para comprobar Gmail.");}
+                catch(Exception ex){com.umg.api.fx.util.Ui.error(ex.getMessage());}
+            });
+            clave.clear();
+        });
+        refrescarEstado.run();
+        getChildren().addAll(titulo,ayuda,guardar,nota,estadoCorreo,configurar,enviar);
     }
 }

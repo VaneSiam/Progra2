@@ -44,6 +44,17 @@ final class HttpJson {
         }
     }
 
+    static JsonNode put(String ruta,Object cuerpo) throws Exception {
+        try(var cliente=ApiConfig.crearCliente()) {
+            var request=new org.apache.hc.client5.http.classic.methods.HttpPut(ApiConfig.url(ruta));
+            request.setEntity(EntityBuilder.create().setText(MAPPER.writeValueAsString(cuerpo)).setContentType(ContentType.APPLICATION_JSON).build());
+            try(var respuesta=cliente.execute(request)) {
+                String body=respuesta.getEntity()==null?"":EntityUtils.toString(respuesta.getEntity());
+                if(respuesta.getCode()!=200)throw new ErrorHttp(respuesta.getCode(),mensajeDeError(respuesta.getCode(),body));
+                return MAPPER.readTree(body);
+            }
+        }
+    }
     static JsonNode get(String ruta) throws Exception {
         try (var cliente = ApiConfig.crearCliente();
              var respuesta = cliente.execute(new org.apache.hc.client5.http.classic.methods.HttpGet(

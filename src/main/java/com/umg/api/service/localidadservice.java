@@ -159,6 +159,22 @@ public class localidadservice {
     // POST - generar los asientos de un concierto
     // La API crea 100 asientos (10 filas x 10) con su inventario y el mismo precio
     // ==========================================================
+    public void generarAsientos(int idConcierto, java.math.BigDecimal vip, java.math.BigDecimal platea, java.math.BigDecimal general) throws Exception {
+        comprobarPreciosPorLocalidad();
+        HttpJson.post(BASE_URL+"/generar-por-localidad", cuerpoPrecios(idConcierto,vip,platea,general), Object.class);
+    }
+    public int actualizarPrecios(int idConcierto, java.math.BigDecimal vip, java.math.BigDecimal platea, java.math.BigDecimal general) throws Exception {
+        comprobarPreciosPorLocalidad();
+        return HttpJson.put("localidades/precios/"+idConcierto,cuerpoPrecios(idConcierto,vip,platea,general)).path("actualizados").asInt();
+    }
+    private void comprobarPreciosPorLocalidad() throws Exception {
+        try {
+            if(!HttpJson.get("/localidades/configuracion-precios").path("precios_por_localidad").asBoolean())throw new IllegalStateException();
+        } catch(Exception e) {throw new Exception("La API todavía no tiene precios por localidad. Tu compañero debe aplicar el parche de precios y desplegar Render. No se crearon ni modificaron asientos.");}
+    }
+    private Map<String,Object> cuerpoPrecios(int id,java.math.BigDecimal vip,java.math.BigDecimal platea,java.math.BigDecimal general) {
+        return Map.of("id_concierto",id,"precios",Map.of("VIP",vip.toPlainString(),"Plata",platea.toPlainString(),"General",general.toPlainString()));
+    }
     public void generarAsientos(int id_concierto, float precio) throws Exception {
         Map<String, Object> cuerpo = new LinkedHashMap<>();
         cuerpo.put("id_concierto", id_concierto);

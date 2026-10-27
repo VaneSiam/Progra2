@@ -1,3 +1,5 @@
+> **Versión para la presentación:** pasos de instalación, precios por localidad y configuración de Gmail en [docs/ENTREGA_HOY.md](docs/ENTREGA_HOY.md). Incluye el mapa y correo del equipo. No incluye credenciales privadas.
+
 # Boletería · SVB-GUA
 
 Cliente JavaFX para el proyecto de Programación II. Se conserva el punto de venta del ZIP actualizado del equipo, incluidos sus precios finales. Este repositorio contiene una copia preparada para integrar comprobantes y boletos con QR; no sustituye automáticamente la aplicación de tu computadora ni la API de tus compañeros.

@@ -31,6 +31,7 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
 import javafx.scene.control.TableView;
+import javafx.scene.control.TextField;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -71,9 +72,8 @@ public class PuntoVentaView extends HBox implements Recargable {
     private final DatePicker dpFecha = new DatePicker();
     private final TableView<concierto> tblConciertos = new TableView<>();
 
-    // [2] Localidades del concierto seleccionado
-    private final ObservableList<inventarios_boletos> inventario = FXCollections.observableArrayList();
-    private final TableView<inventarios_boletos> tblInventario = new TableView<>();
+    // [2] Estadio con los asientos del concierto seleccionado
+    private final EstadioMapa mapa = new EstadioMapa();
     private final Label lblEvento = new Label("Selecciona un concierto");
     private concierto conciertoActual;
 
@@ -85,9 +85,14 @@ public class PuntoVentaView extends HBox implements Recargable {
     }
     private final ObservableList<Linea> carrito = FXCollections.observableArrayList();
     private final TableView<Linea> tblCarrito = new TableView<>();
+    private final ObservableList<cliente> clientesTodos = FXCollections.observableArrayList();
+    private final FilteredList<cliente> clientesFiltrados = new FilteredList<>(clientesTodos);
     private final ComboBox<cliente> cbCliente = new ComboBox<>();
+    private final TextField buscarCliente = new TextField();
+    private final Label avisoCliente = new Label();
     private final Label lblTotal = new Label();
     private final Label lblDesglose = new Label();
+    private final Label detalleBoleto = new Label("Selecciona una entrada del carrito para ver su desglose.");
     private final SimpleBooleanProperty cobrando = new SimpleBooleanProperty(false);
 
     public PuntoVentaView() {
@@ -144,29 +149,17 @@ public class PuntoVentaView extends HBox implements Recargable {
     }
 
     private VBox panelLocalidades() {
-        Label titulo = new Label("2. Asiento");
+        Label titulo = new Label("2. Asientos");
         titulo.getStyleClass().add("seccion");
         lblEvento.setWrapText(true);
+        lblEvento.setMinHeight(Region.USE_PREF_SIZE);   // que se vean sus dos líneas aunque la ventana sea baja
 
-        Ui.columnas(tblInventario,
-                Ui.col("Localidad", i -> nombreLocalidad.get(i.getId_localidad()), 110),
-                Ui.col("Asiento", i -> asientoLocalidad.get(i.getId_localidad()), 80),
-                Ui.col("Precio", i -> Ui.dinero(precioFinal(i)), 80));
-        tblInventario.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
-        tblInventario.getColumns().get(0).setMinWidth(68);
-        tblInventario.getColumns().get(1).setMinWidth(48);
-        tblInventario.getColumns().get(2).setMinWidth(92);
-        tblInventario.setItems(inventario);
-        VBox.setVgrow(tblInventario, Priority.ALWAYS);
+        mapa.setAlHacerClic(this::alternarAsiento);
 
-        Button btnAgregar = new Button("Agregar al carrito");
-        btnAgregar.getStyleClass().add("boton-primario");
-        btnAgregar.disableProperty().bind(tblInventario.getSelectionModel().selectedItemProperty().isNull());
-        btnAgregar.setOnAction(e -> agregarAlCarrito());
-        HBox acciones = new HBox(10, btnAgregar);
-        acciones.setAlignment(Pos.CENTER_LEFT);
-
-        VBox p = new VBox(10, titulo, new Label("Tarifas: VIP +45% · Plata +25% · General sin recargo"), lblEvento, tblInventario, acciones);
+        Label tarifas=new Label("Precios base + recargo: VIP 45% · Platea 25% · General 0%");
+        tarifas.setWrapText(true);tarifas.setMinHeight(Region.USE_PREF_SIZE);
+        VBox p = new VBox(10, titulo, tarifas, lblEvento, mapa);
+        VBox.setVgrow(mapa, Priority.ALWAYS);
         p.getStyleClass().add("panel");
         return p;
     }
@@ -178,8 +171,6 @@ public class PuntoVentaView extends HBox implements Recargable {
         Ui.columnas(tblCarrito,
                 Ui.col("Evento", l -> l.concierto().getTitulo_evento(), 120),
                 Ui.col("Localidad", Linea::localidad, 90),
-                Ui.col("Base", l -> Ui.dinero(l.base()), 75),
-                Ui.col("Recargo", l -> Ui.dinero(l.cargo()), 75),
                 Ui.col("Cant.", l -> String.valueOf(l.cantidad()), 50),
                 Ui.col("Subtotal", l -> Ui.dinero(l.subtotal()), 90));
         tblCarrito.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
@@ -188,8 +179,12 @@ public class PuntoVentaView extends HBox implements Recargable {
         tblCarrito.getColumns().get(2).setMinWidth(46);
         tblCarrito.getColumns().get(3).setMinWidth(92);
         tblCarrito.setItems(carrito);
+        detalleBoleto.setWrapText(true);detalleBoleto.setMinHeight(Region.USE_PREF_SIZE);
+        tblCarrito.getSelectionModel().selectedItemProperty().addListener((o,a,l) -> detalleBoleto.setText(l==null
+            ? "Selecciona una entrada para ver su desglose."
+            : l.localidad()+": base "+Ui.dinero(l.base())+" + recargo "+Ui.dinero(l.cargo())+" = "+Ui.dinero(l.precio())));
         VBox.setVgrow(tblCarrito, Priority.ALWAYS);
-        carrito.addListener((ListChangeListener<Linea>) c -> actualizarTotal());
+        carrito.addListener((ListChangeListener<Linea>) c -> {actualizarTotal(); dibujarMapa();if(tblCarrito.getSelectionModel().getSelectedItem()==null && !carrito.isEmpty())tblCarrito.getSelectionModel().selectFirst();});
 
         Button quitar = new Button("Quitar");
         quitar.disableProperty().bind(tblCarrito.getSelectionModel().selectedItemProperty().isNull());
@@ -199,6 +194,16 @@ public class PuntoVentaView extends HBox implements Recargable {
         vaciar.setOnAction(e -> carrito.clear());
         HBox botonesCarrito = new HBox(8, quitar, vaciar);
 
+        cbCliente.setItems(clientesFiltrados);
+        buscarCliente.setPromptText("Buscar cliente por nombre o NIT");
+        buscarCliente.textProperty().addListener((o,a,q) -> {
+            cliente anterior=cbCliente.getValue();
+            clientesFiltrados.setPredicate(c -> com.umg.api.service.BusquedaClientes.coincide(c,q));
+            if(anterior!=null && !clientesFiltrados.contains(anterior))cbCliente.setValue(null);
+            actualizarAvisoCliente();
+        });
+        cbCliente.valueProperty().addListener((o,a,c) -> actualizarAvisoCliente());
+        avisoCliente.setWrapText(true);avisoCliente.setMinHeight(Region.USE_PREF_SIZE);
         cbCliente.setPromptText("Selecciona un cliente");
         cbCliente.setConverter(Ui.convertidor(c ->
                 (c.getNombre() + " " + (c.getApellido() == null ? "" : c.getApellido())).trim()
@@ -224,7 +229,7 @@ public class PuntoVentaView extends HBox implements Recargable {
         pie.setAlignment(Pos.CENTER_LEFT);
 
         lblDesglose.setWrapText(true);
-        VBox p = new VBox(10, titulo, tblCarrito, botonesCarrito, filaCliente, lblDesglose, pie);
+        VBox p = new VBox(10, titulo, tblCarrito, detalleBoleto, botonesCarrito, buscarCliente, filaCliente, avisoCliente, lblDesglose, pie);
         p.getStyleClass().add("panel");
         return p;
     }
@@ -259,7 +264,8 @@ public class PuntoVentaView extends HBox implements Recargable {
             cbArtista.getItems().setAll(d.artistas());
             cbArtista.getItems().stream().filter(a -> Objects.equals(a.getId_artista(), idArtistaFiltro))
                     .findFirst().ifPresent(cbArtista::setValue);
-            cbCliente.getItems().setAll(d.clientes());
+            clientesTodos.setAll(d.clientes());
+            actualizarAvisoCliente();
             cbCliente.getItems().stream().filter(c -> Objects.equals(c.getId(), idCliente))
                     .findFirst().ifPresent(cbCliente::setValue);
 
@@ -267,7 +273,7 @@ public class PuntoVentaView extends HBox implements Recargable {
                     .filter(c -> c.getEstado() != null && VENDIBLES.contains(c.getEstado().trim().toLowerCase()))
                     .toList());
             tblConciertos.refresh();
-            tblInventario.refresh();
+            dibujarMapa();
 
             concierto reseleccion = todos.stream()
                     .filter(c -> idSeleccionado != null && c.getId_concierto() == idSeleccionado)
@@ -290,16 +296,30 @@ public class PuntoVentaView extends HBox implements Recargable {
     private void mostrarInventario(concierto c) {
         conciertoActual = c;
         if (c == null) {
-            inventario.clear();
             lblEvento.setText("Selecciona un concierto");
+        } else {
+            lblEvento.setText(c.getTitulo_evento() + "\n" + Ui.fecha(c.getFecha_concierto())
+                    + (c.getHorario() == null ? "" : " " + c.getHorario()) + " · " + c.getRecinto());
+        }
+        dibujarMapa();
+    }
+
+    // Pasa al mapa los asientos del concierto seleccionado: cada fila de inventario es un asiento
+    private void dibujarMapa() {
+        if (conciertoActual == null) {
+            mapa.mostrar(List.of());
             return;
         }
-        lblEvento.setText(c.getTitulo_evento() + "\n" + Ui.fecha(c.getFecha_concierto())
-                + (c.getHorario() == null ? "" : " " + c.getHorario()) + " · " + c.getRecinto());
-        inventario.setAll(todoInventario.stream()
-                .filter(i -> i.getId_concierto() == c.getId_concierto()
-                        && i.getCantidad_disponible() > 0
-                        && asientosLibres.contains(i.getId_localidad())).toList());
+        mapa.mostrar(todoInventario.stream()
+                .filter(i -> i.getId_concierto() == conciertoActual.getId_concierto())
+                .map(i -> new EstadioMapa.Asiento(
+                        i.getId_inventario(),
+                        asientoLocalidad.get(i.getId_localidad()),
+                        nombreLocalidad.get(i.getId_localidad()),
+                        i.getCantidad_disponible() > 0 && asientosLibres.contains(i.getId_localidad()),
+                        enCarrito(i.getId_inventario()) > 0,
+                        Ui.dinero(precioFinal(i))))
+                .toList());
     }
 
     // ------------------------------------------------------------------ carrito
@@ -316,22 +336,33 @@ public class PuntoVentaView extends HBox implements Recargable {
                 com.umg.api.service.Tarifas.porcentaje(nombreLocalidad.get(inv.getId_localidad()))));
     }
 
-    private void agregarAlCarrito() {
-        inventarios_boletos inv = tblInventario.getSelectionModel().getSelectedItem();
-        if (inv == null || conciertoActual == null) return;
+    // Clic en un asiento del mapa: si ya está en el carrito se quita, y si no, se agrega
+    private void alternarAsiento(int idInventario) {
+        if (conciertoActual == null) return;
+
+        for (Linea l : carrito) {
+            if (l.inv().getId_inventario() == idInventario) {
+                carrito.remove(l);
+                return;
+            }
+        }
+
+        inventarios_boletos inv = todoInventario.stream()
+                .filter(i -> i.getId_inventario() == idInventario).findFirst().orElse(null);
+        if (inv == null) return;
         String loc = nombreLocalidad.getOrDefault(inv.getId_localidad(), "Localidad " + inv.getId_localidad())
                 + " " + asientoLocalidad.getOrDefault(inv.getId_localidad(), "");
-
         // cada asiento se vende una sola vez
-        if (enCarrito(inv.getId_inventario()) > 0) {
-            Ui.error("Ese asiento ya está en el carrito.");
-            return;
-        }
         carrito.add(new Linea(conciertoActual, inv, loc.trim(), precioFinal(inv), 1));
     }
 
     private BigDecimal total() {
         return carrito.stream().map(Linea::subtotal).reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private void actualizarAvisoCliente() {
+        avisoCliente.setText(clientesFiltrados.isEmpty() ? "No se encontró cliente con ese nombre o NIT."
+                : com.umg.api.service.BusquedaClientes.avisoNit(cbCliente.getValue()));
     }
 
     private void actualizarTotal() {
