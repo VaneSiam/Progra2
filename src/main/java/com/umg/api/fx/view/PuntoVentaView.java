@@ -441,6 +441,7 @@ public class PuntoVentaView extends HBox implements Recargable {
                 },
                 (VentaConCorreo resultado) -> {
                     ventas v = resultado.venta();
+                    com.umg.api.fx.util.UltimaVenta.recordar(v.getId_venta());
                     cobrando.set(false);
                     carrito.clear();
                     Ui.info("Venta #" + v.getId_venta() + " registrada.\nTotal cobrado: " + Ui.dinero(v.getTotal_venta()) + "\n" + resultado.correo());
