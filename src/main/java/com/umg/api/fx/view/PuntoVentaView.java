@@ -89,6 +89,8 @@ public class PuntoVentaView extends HBox implements Recargable {
     private final FilteredList<cliente> clientesFiltrados = new FilteredList<>(clientesTodos);
     private final ComboBox<cliente> cbCliente = new ComboBox<>();
     private final TextField buscarCliente = new TextField();
+    private final javafx.scene.control.ListView<cliente> sugerenciasClientes = new javafx.scene.control.ListView<>();
+    private final SimpleBooleanProperty clienteValido = new SimpleBooleanProperty(false);
     private final Label avisoCliente = new Label();
     private final Label lblTotal = new Label();
     private final Label lblDesglose = new Label();
@@ -196,22 +198,40 @@ public class PuntoVentaView extends HBox implements Recargable {
 
         cbCliente.setItems(clientesFiltrados);
         buscarCliente.setPromptText("Buscar cliente por nombre o NIT");
-        buscarCliente.textProperty().addListener((o,a,q) -> {
-            cliente anterior=cbCliente.getValue();
-            clientesFiltrados.setPredicate(c -> com.umg.api.service.BusquedaClientes.coincide(c,q));
-            if(anterior!=null && !clientesFiltrados.contains(anterior))cbCliente.setValue(null);
-            actualizarAvisoCliente();
+        sugerenciasClientes.setItems(clientesFiltrados);
+        sugerenciasClientes.setFixedCellSize(32);
+        sugerenciasClientes.setCellFactory(lista -> new javafx.scene.control.ListCell<>() {
+            @Override protected void updateItem(cliente c,boolean vacia) {
+                super.updateItem(c,vacia);setText(vacia || c==null?null:com.umg.api.service.BusquedaClientes.etiqueta(c));
+            }
         });
-        cbCliente.valueProperty().addListener((o,a,c) -> actualizarAvisoCliente());
+        sugerenciasClientes.setVisible(false);sugerenciasClientes.setManaged(false);
+        sugerenciasClientes.setOnMouseClicked(e -> elegirSugerencia());
+        sugerenciasClientes.setOnKeyPressed(e -> {
+            if(e.getCode()==javafx.scene.input.KeyCode.ENTER){elegirSugerencia();e.consume();}
+            if(e.getCode()==javafx.scene.input.KeyCode.ESCAPE){ocultarSugerencias();buscarCliente.requestFocus();e.consume();}
+        });
+        buscarCliente.textProperty().addListener((o,a,q) -> {
+            cbCliente.setValue(null);
+            clientesFiltrados.setPredicate(c -> com.umg.api.service.BusquedaClientes.coincide(c,q));
+            actualizarAvisoCliente();mostrarSugerencias();
+        });
+        buscarCliente.setOnKeyPressed(e -> {
+            if(e.getCode()==javafx.scene.input.KeyCode.DOWN && sugerenciasClientes.isVisible()) {
+                sugerenciasClientes.requestFocus();sugerenciasClientes.getSelectionModel().selectFirst();e.consume();
+            } else if(e.getCode()==javafx.scene.input.KeyCode.ENTER && sugerenciasClientes.isVisible()) {
+                if(sugerenciasClientes.getSelectionModel().getSelectedItem()==null)sugerenciasClientes.getSelectionModel().selectFirst();
+                elegirSugerencia();e.consume();
+            } else if(e.getCode()==javafx.scene.input.KeyCode.ESCAPE){ocultarSugerencias();e.consume();}
+        });
+        cbCliente.valueProperty().addListener((o,a,c) -> {actualizarAvisoCliente();if(c!=null)ocultarSugerencias();});
         avisoCliente.setWrapText(true);avisoCliente.setMinHeight(Region.USE_PREF_SIZE);
         cbCliente.setPromptText("Selecciona un cliente");
-        cbCliente.setConverter(Ui.convertidor(c ->
-                (c.getNombre() + " " + (c.getApellido() == null ? "" : c.getApellido())).trim()
-                        + (c.getNit() == null || c.getNit().isBlank() ? "" : "  ·  NIT " + c.getNit())));
+        cbCliente.setConverter(Ui.convertidor(com.umg.api.service.BusquedaClientes::etiqueta));
         cbCliente.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(cbCliente, Priority.ALWAYS);
         Button sinCliente = new Button("✕");
-        sinCliente.setOnAction(e -> cbCliente.setValue(null));
+        sinCliente.setOnAction(e -> {buscarCliente.clear();cbCliente.setValue(null);ocultarSugerencias();});
         Label etiquetaCliente = new Label("Cliente:");
         etiquetaCliente.setMinWidth(Region.USE_PREF_SIZE);
         cbCliente.setMinWidth(0);
@@ -223,13 +243,13 @@ public class PuntoVentaView extends HBox implements Recargable {
         HBox.setHgrow(esp, Priority.ALWAYS);
         Button cobrar = new Button("Cobrar");
         cobrar.getStyleClass().add("boton-primario");
-        cobrar.disableProperty().bind(Bindings.isEmpty(carrito).or(cobrando));
+        cobrar.disableProperty().bind(Bindings.isEmpty(carrito).or(cobrando).or(clienteValido.not()));
         cobrar.setOnAction(e -> cobrar());
         HBox pie = new HBox(10, new Label("Total:"), lblTotal, esp, cobrar);
         pie.setAlignment(Pos.CENTER_LEFT);
 
         lblDesglose.setWrapText(true);
-        VBox p = new VBox(10, titulo, tblCarrito, detalleBoleto, botonesCarrito, buscarCliente, filaCliente, avisoCliente, lblDesglose, pie);
+        VBox p = new VBox(10, titulo, tblCarrito, detalleBoleto, botonesCarrito, buscarCliente, sugerenciasClientes, filaCliente, avisoCliente, lblDesglose, pie);
         p.getStyleClass().add("panel");
         return p;
     }
@@ -265,7 +285,7 @@ public class PuntoVentaView extends HBox implements Recargable {
             cbArtista.getItems().stream().filter(a -> Objects.equals(a.getId_artista(), idArtistaFiltro))
                     .findFirst().ifPresent(cbArtista::setValue);
             clientesTodos.setAll(d.clientes());
-            actualizarAvisoCliente();
+            actualizarAvisoCliente();mostrarSugerencias();
             cbCliente.getItems().stream().filter(c -> Objects.equals(c.getId(), idCliente))
                     .findFirst().ifPresent(cbCliente::setValue);
 
@@ -360,9 +380,24 @@ public class PuntoVentaView extends HBox implements Recargable {
         return carrito.stream().map(Linea::subtotal).reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
+    private void ocultarSugerencias(){sugerenciasClientes.setVisible(false);sugerenciasClientes.setManaged(false);}
+    private void mostrarSugerencias() {
+        boolean mostrar=!buscarCliente.getText().isBlank() && !clientesFiltrados.isEmpty() && cbCliente.getValue()==null;
+        sugerenciasClientes.setPrefHeight(Math.min(4,clientesFiltrados.size())*32+2);
+        sugerenciasClientes.setMinHeight(javafx.scene.layout.Region.USE_PREF_SIZE);
+        sugerenciasClientes.setVisible(mostrar);sugerenciasClientes.setManaged(mostrar);
+    }
+    private void elegirSugerencia() {
+        cliente elegida=sugerenciasClientes.getSelectionModel().getSelectedItem();
+        if(elegida==null)return;
+        cbCliente.setValue(elegida);ocultarSugerencias();buscarCliente.requestFocus();
+    }
     private void actualizarAvisoCliente() {
+        cliente c=cbCliente.getValue();
+        clienteValido.set(c!=null && com.umg.api.validacion.ValidacionCliente.errores(c).isEmpty());
         avisoCliente.setText(clientesFiltrados.isEmpty() ? "No se encontró cliente con ese nombre o NIT."
-                : com.umg.api.service.BusquedaClientes.avisoNit(cbCliente.getValue()));
+                : c!=null && !clienteValido.get() ? "Este cliente tiene datos pendientes de corregir en Clientes."
+                : com.umg.api.service.BusquedaClientes.avisoNit(c));
     }
 
     private void actualizarTotal() {
@@ -379,11 +414,9 @@ public class PuntoVentaView extends HBox implements Recargable {
             Ui.error("Selecciona el cliente de la venta.");
             return;
         }
-        try {
-            Validaciones.correo(cbCliente.getValue().getCorreo());
-            Validaciones.telefono(cbCliente.getValue().getTelefono());
-        } catch (IllegalArgumentException ex) {
-            Ui.error("Corrige los datos del cliente en Clientes antes de vender. " + ex.getMessage()); return;
+        if(!clienteValido.get())return; // La corrección y sus mensajes por campo están en Clientes.
+        if(Sesion.token()==null && !com.umg.api.service.CorreoService.configurado()) {
+            if(!com.umg.api.fx.util.ConfigurarGmail.mostrar(getScene().getWindow()))return;
         }
         int boletos = carrito.stream().mapToInt(Linea::cantidad).sum();
         if (!Ui.confirmar(boletos + " boleto(s) por " + Ui.dinero(total()) + "\n¿Confirmar la venta?")) return;

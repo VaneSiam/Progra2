@@ -1,49 +1,41 @@
-> La versión integrada añade el botón **Configurar Gmail en este equipo** en Comprobantes y QR. Ya no se omite el envío sin aviso: se indica que el correo está pendiente. Ver [ENTREGA_HOY.md](ENTREGA_HOY.md). Si la API entrega token de correo se usa ese modo; de lo contrario, Gmail local.
+# Configurar Gmail una vez en esta computadora
 
-# Enviar el comprobante por Gmail desde el programa
+La aplicación conserva el envío SMTP directo que agregó el equipo. Si la API
+entrega una sesión del servicio de correo, usa ese servicio; no cambia de modo
+automáticamente después de fallar un envío.
 
-El programa manda el correo directamente con SMTP (smtp.gmail.com, puerto 587), sin pasar por la API.
-Al cliente le llega un correo con el comprobante y los boletos con QR en un PDF adjunto.
+## Pasos
 
-## 1. Crear la contraseña de aplicación de Gmail (una sola vez)
+1. En la cuenta Gmail que ENVIARÁ los comprobantes, activar verificación en dos pasos.
+2. Abrir https://myaccount.google.com/apppasswords y crear una contraseña de aplicación.
+3. En Java abrir **Comprobantes y QR → Configurar Gmail en este equipo**.
+4. Escribir el Gmail remitente y esa contraseña de aplicación de 16 letras. No es la contraseña normal de Google. No compartirla por chat.
+5. Pulsar **Probar conexión Gmail (sin enviar correo)**. Comprueba red, STARTTLS y autenticación sin crear una venta ni enviar un mensaje.
+6. Usar **Enviar comprobante por correo / consultar estado** con una venta propia existente, o con cualquier venta si es administrador. Para recuperar la venta #45 no se vuelve a cobrar.
+7. Revisar Enviados del remitente y bandeja/spam del destinatario. Que el servidor acepte el envío no garantiza entrega en bandeja.
 
-Gmail no deja que un programa use la contraseña normal de la cuenta. Hay que crear una *contraseña de aplicación*:
+Si falta configurar Gmail, se solicita antes de crear una compra nueva. Cancelar
+esa configuración no crea la venta ni modifica el carrito. No se oculta un fallo
+de correo ni se informa que fue enviado cuando no se pudo confirmar.
 
-1. Entra a tu cuenta de Google > **Seguridad** y activa la **Verificación en dos pasos** (si no está activa).
-2. Abre https://myaccount.google.com/apppasswords
-3. Escribe un nombre (por ejemplo `Boleteria`) y pulsa **Crear**.
-4. Copia la contraseña de 16 letras que aparece.
+## Configuración que se conserva al descargar otro ZIP
 
-Si no te aparece la opción de contraseñas de aplicación, casi siempre es porque la cuenta es de una organización o
-centro educativo (por ejemplo, una cuenta de la universidad): usa una cuenta personal de Gmail.
+En Windows se guarda en `%APPDATA%\SVB-GUA\correo.properties`, fuera del proyecto.
+El registro de envíos queda en la subcarpeta `envios`, para evitar reenvíos al
+abrir otra copia del programa en el mismo usuario de la computadora. En otros
+sistemas, se usa `~/.config/SVB-GUA`. No se incluyen claves en el ZIP ni en Git.
 
-## 2. Crear el archivo correo.properties
+Se sigue admitiendo el archivo antiguo `correo.properties` en la carpeta actual
+del proyecto, y las variables GMAIL_USUARIO/GMAIL_CLAVE. Si solo existía el archivo
+antiguo en otra carpeta, usar Configurar Gmail una vez para guardarlo en la
+ubicación permanente; no se buscan contraseñas en otras carpetas.
 
-Copia `correo.properties.ejemplo` como `correo.properties` **en la carpeta del proyecto, junto al pom.xml**, y escribe tus datos:
+## Errores
 
-    usuario=micuenta@gmail.com
-    clave=abcd efgh ijkl mnop
+- **Gmail rechazó la cuenta o clave:** comprobar la contraseña de aplicación, no la normal.
+- **No se pudo conectar:** comprobar internet y permiso de salida SMTP 587 en esa red.
+- **Cliente con datos pendientes:** corregirlo en Clientes, donde se muestran los errores por campo antes de guardar.
+- **Envío incierto:** revisar Gmail Enviados antes de reintentar. Nunca repetir el cobro ni borrar el registro para intentar enviarlo otra vez.
 
-(En NetBeans: pestaña **Archivos**, clic derecho al proyecto > Nuevo > Archivo vacío.)
-Este archivo no se sube a GitHub (está en `.gitignore`); no lo compartas porque tiene la clave.
-Otra opción, sin archivo: las variables de entorno `GMAIL_USUARIO` y `GMAIL_CLAVE`.
-
-## 3. Usarlo
-
-- **Automático:** al cobrar una venta, si el cliente tiene un correo válido, se le envía el comprobante.
-  Si no existe `correo.properties`, la venta funciona igual pero no se envía nada.
-- **Manual:** módulo **Comprobantes y QR** > *Enviar comprobante por correo (Gmail)*: escribes el número de una venta
-  ya registrada, confirmas o corriges el correo y se envía.
-
-El correo sale de la cuenta de Gmail configurada; ahí mismo aparece en *Enviados*.
-
-## Problemas comunes
-
-| Mensaje | Qué hacer |
-| --- | --- |
-| Falta configurar el correo | Falta crear `correo.properties` junto al pom.xml (paso 2). |
-| Gmail rechazó el usuario o la contraseña | Se usó la contraseña normal en vez de la de aplicación, o está mal copiada. Crea otra en el paso 1. |
-| No se pudo enviar... revisa tu conexión | No hay internet o la red bloquea el puerto 587 (algunas redes de universidades lo bloquean). Prueba con otra red. |
-| El cliente no tiene un correo válido | Edita el cliente en el módulo Clientes y escribe su correo. |
-
-Límite de Gmail gratuito: alrededor de 500 correos por día. Si cambias la contraseña de la cuenta de Google, hay que crear otra contraseña de aplicación.
+La prueba automatizada usa SMTP local cifrado y credenciales ficticias. La entrega
+por Gmail real requiere la cuenta de su propietario configurada en esa computadora.

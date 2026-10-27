@@ -13,8 +13,16 @@ public final class RegistroCorreoLocal {
     static Path ruta(int id) throws Exception {
         if(id<1)throw new IllegalArgumentException("Venta inválida.");
         String clave=HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(ApiConfig.url("ventas/"+id).getBytes(StandardCharsets.UTF_8)));
-        Path dir=Path.of(System.getProperty("svb.correo.registro", ".svb-correo"));Files.createDirectories(dir);
-        return dir.resolve(clave+".estado");
+        String personalizada=System.getProperty("svb.correo.registro");
+        Path dir=personalizada!=null && !personalizada.isBlank()?Path.of(personalizada)
+            :CorreoService.archivoConfiguracion().getParent().resolve("envios");
+        Files.createDirectories(dir);
+        Path destino=dir.resolve(clave+".estado");
+        Path anterior=Path.of(".svb-correo",clave+".estado");
+        if(!Files.exists(destino) && Files.isRegularFile(anterior)) {
+            try{Files.copy(anterior,destino);}catch(FileAlreadyExistsException ignorado){}
+        }
+        return destino;
     }
     public static String ejecutar(int id,Envio envio) throws Exception {
         Path p=ruta(id);

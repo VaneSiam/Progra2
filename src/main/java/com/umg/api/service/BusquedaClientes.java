@@ -6,9 +6,16 @@ public final class BusquedaClientes {
     private BusquedaClientes() {}
     private static String normal(String s) {return Normalizer.normalize(s==null?"":s,Normalizer.Form.NFD).replaceAll("\\p{M}","").toLowerCase(Locale.ROOT).trim();}
     public static boolean coincide(cliente c,String busqueda) {
-        String q=normal(busqueda);
-        return q.isEmpty() || normal(c.getNombre()+" "+(c.getApellido()==null?"":c.getApellido())).contains(q)
-                || (!q.replace("-","").isEmpty() && normal(c.getNit()).replace("-","").contains(q.replace("-","")));
+        String q=normal(busqueda).replace('\u00a0',' ');
+        if(q.isEmpty())return true;
+        String nombre=normal((c.getNombre()==null?"":c.getNombre())+" "+(c.getApellido()==null?"":c.getApellido()));
+        String nit=normal(c.getNit()).replaceAll("[^a-z0-9]","");
+        String consultaNit=q.replaceAll("[^a-z0-9]","");
+        return nombre.contains(q) || (!consultaNit.isEmpty() && nit.contains(consultaNit));
+    }
+    public static String etiqueta(cliente c) {
+        String nit=c.getNit()==null || c.getNit().isBlank()?"Sin NIT":"NIT "+c.getNit().trim();
+        return nit+" · "+((c.getNombre()==null?"":c.getNombre())+" "+(c.getApellido()==null?"":c.getApellido())).trim();
     }
     public static String avisoNit(cliente c) {
         if(c==null)return "";

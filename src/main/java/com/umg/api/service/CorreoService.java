@@ -26,8 +26,8 @@ import java.util.Properties;
  * Envía correos con Gmail directamente desde el programa (SMTP), sin pasar por la API.
  *
  * Gmail no acepta la contraseña normal de la cuenta: hay que crear una "contraseña de aplicación"
- * (ver docs/CORREO_GMAIL.md). Los datos se leen del archivo correo.properties (junto al pom.xml,
- * NO se sube a GitHub) o de las variables de entorno GMAIL_USUARIO y GMAIL_CLAVE:
+ * (ver docs/CORREO_GMAIL.md). Se guardan fuera del ZIP, en APPDATA/SVB-GUA en Windows.
+ * Se admite el archivo antiguo junto al proyecto y las variables GMAIL_USUARIO/GMAIL_CLAVE:
  *
  *     usuario=micuenta@gmail.com
  *     clave=abcdefghijklmnop
@@ -49,10 +49,10 @@ public class CorreoService {
         this.host = p.getProperty("host", "smtp.gmail.com").trim();
         this.puerto = Integer.parseInt(p.getProperty("puerto", "587").trim());
         if (usuario == null || clave.isEmpty()) {
-            throw new Exception("Falta configurar el correo. Crea el archivo " + ARCHIVO
-                    + " junto al pom.xml con las líneas usuario=... y clave=... (contraseña de aplicación de Gmail).\n"
-                    + "Los pasos están en docs/CORREO_GMAIL.md");
+            throw new Exception("Configura la cuenta remitente en Comprobantes y QR > Configurar Gmail.");
         }
+        com.umg.api.validacion.Validaciones.correo(usuario);
+        if(!clave.matches("[a-zA-Z]{16}"))throw new Exception("Gmail requiere su contraseña de aplicación de 16 letras. Corrígela en Configurar Gmail.");
     }
 
     /** Para pruebas o para usar otro servidor SMTP con los mismos datos. */
@@ -65,12 +65,7 @@ public class CorreoService {
 
     /** true si ya existe la configuración del correo (para no intentar enviar si no se ha configurado). */
     public static boolean configurado() {
-        try {
-            Properties p = leerConfiguracion();
-            return valor(p, "usuario", "GMAIL_USUARIO") != null && !quitarEspacios(valor(p, "clave", "GMAIL_CLAVE")).isEmpty();
-        } catch (Exception e) {
-            return false;
-        }
+        try {new CorreoService();return true;}catch(Exception e){return false;}
     }
 
     // ------------------------------------------------------------------ envío
@@ -83,23 +78,7 @@ public class CorreoService {
      * @param nombreAdjunto  nombre con el que le llega al cliente, por ejemplo "comprobante-venta-5.pdf"
      */
     public void enviar(String para, String asunto, String texto, Path adjunto, String nombreAdjunto) throws Exception {
-        Properties props = new Properties();
-        props.put("mail.smtp.host", host);
-        props.put("mail.smtp.port", String.valueOf(puerto));
-        props.put("mail.smtp.auth", "true");
-        props.put("mail.smtp.starttls.enable", "true");      // Gmail en el puerto 587 usa STARTTLS
-        props.put("mail.smtp.starttls.required", "true");    // nunca mandar la clave sin cifrar
-        props.put("mail.smtp.ssl.checkserveridentity", "true");
-        props.put("mail.smtp.connectiontimeout", "20000");   // si no hay internet, que falle en 20 s y no se quede colgado
-        props.put("mail.smtp.timeout", "30000");
-        props.put("mail.smtp.writetimeout", "30000");
-
-        Session sesion = Session.getInstance(props, new Authenticator() {
-            @Override
-            protected PasswordAuthentication getPasswordAuthentication() {
-                return new PasswordAuthentication(usuario, clave);
-            }
-        });
+        Session sesion=crearSesion();
 
         try {
             MimeMessage mensaje = new MimeMessage(sesion);
@@ -137,14 +116,54 @@ public class CorreoService {
         }
     }
 
-    public static Path archivoConfiguracion() {return Path.of(ARCHIVO).toAbsolutePath();}
+    private Session crearSesion() {
+        Properties props = new Properties();
+        props.put("mail.smtp.host", host);
+        props.put("mail.smtp.port", String.valueOf(puerto));
+        props.put("mail.smtp.auth", "true");
+        props.put("mail.smtp.starttls.enable", "true");      // Gmail en el puerto 587 usa STARTTLS
+        props.put("mail.smtp.starttls.required", "true");    // nunca mandar la clave sin cifrar
+        props.put("mail.smtp.ssl.checkserveridentity", "true");
+        props.put("mail.smtp.connectiontimeout", "20000");   // si no hay internet, que falle en 20 s y no se quede colgado
+        props.put("mail.smtp.timeout", "30000");
+        props.put("mail.smtp.writetimeout", "30000");
+
+        return Session.getInstance(props, new Authenticator() {
+            @Override
+            protected PasswordAuthentication getPasswordAuthentication() {
+                return new PasswordAuthentication(usuario, clave);
+            }
+        });
+    }
+    /** Comprueba red, TLS y autenticación, sin enviar correos ni crear ventas. */
+    public void comprobarConexion() throws Exception {
+        try(Transport transporte=crearSesion().getTransport("smtp")) {
+            transporte.connect(host,puerto,usuario,clave);
+        } catch(AuthenticationFailedException e) {
+            throw new Exception("Gmail rechazó la cuenta o la contraseña de aplicación. Revisa Configurar Gmail.");
+        } catch(MessagingException e) {
+            throw new Exception("No se pudo conectar con Gmail. Revisa internet y que tu red permita SMTP (puerto 587).");
+        }
+    }
+
+    public static Path archivoConfiguracion() {
+        String personalizada=System.getProperty("svb.correo.config");
+        if(personalizada!=null && !personalizada.isBlank())return Path.of(personalizada).toAbsolutePath();
+        String appdata=System.getenv("APPDATA");
+        Path directorio=appdata!=null && !appdata.isBlank()?Path.of(appdata,"SVB-GUA")
+            :Path.of(System.getProperty("user.home"),".config","SVB-GUA");
+        return directorio.resolve(ARCHIVO).toAbsolutePath();
+    }
+    public static String remitenteConfigurado() {
+        try{return valor(leerConfiguracion(),"usuario","GMAIL_USUARIO");}catch(Exception e){return null;}
+    }
     public static void configurar(String remitente,String claveAplicacion) throws Exception {
         remitente=com.umg.api.validacion.Validaciones.correo(remitente);
         String clave=quitarEspacios(claveAplicacion);
         if(!clave.matches("[a-zA-Z]{16}"))throw new IllegalArgumentException("Usa la contraseña de aplicación de Gmail de 16 letras, no la contraseña normal.");
         Properties p=new Properties();p.setProperty("usuario",remitente);p.setProperty("clave",clave);
         p.setProperty("host","smtp.gmail.com");p.setProperty("puerto","587");
-        Path archivo=archivoConfiguracion();Path temporal=Files.createTempFile(archivo.getParent(),".correo-",".tmp");
+        Path archivo=archivoConfiguracion();Files.createDirectories(archivo.getParent());Path temporal=Files.createTempFile(archivo.getParent(),".correo-",".tmp");
         try {
             try(var out=Files.newBufferedWriter(temporal,StandardCharsets.UTF_8)){p.store(out,"Configuración local privada; no compartir ni subir a GitHub");}
             Files.move(temporal,archivo,java.nio.file.StandardCopyOption.REPLACE_EXISTING);
@@ -155,7 +174,10 @@ public class CorreoService {
 
     private static Properties leerConfiguracion() throws IOException {
         Properties p = new Properties();
-        Path archivo = Path.of(ARCHIVO);
+        Path archivo=archivoConfiguracion();
+        // Compatibilidad con la configuración antigua junto al proyecto, sin buscar otras carpetas.
+        String personalizada=System.getProperty("svb.correo.config");
+        if(!Files.exists(archivo) && (personalizada==null || personalizada.isBlank()))archivo=Path.of(ARCHIVO);
         if (Files.exists(archivo)) {
             try (var in = Files.newBufferedReader(archivo, StandardCharsets.UTF_8)) {
                 p.load(in);

@@ -39,7 +39,7 @@ public class PruebaInterfazIntegrada {
         ((ObservableList<concierto>)campo(p,"todos")).add(c);
         ((TableView<concierto>)campo(p,"tblConciertos")).getSelectionModel().select(c);
         Method elegir=PuntoVentaView.class.getDeclaredMethod("alternarAsiento",int.class);elegir.setAccessible(true);elegir.invoke(p,1);
-        var cl=new cliente();cl.setId(1);cl.setNombre("Cliente");cl.setApellido("Muestra");cl.setNit("CF");
+        var cl=new cliente();cl.setId(1);cl.setNombre("Cliente");cl.setApellido("Muestra");cl.setNit("CF");cl.setTelefono("12345678");cl.setCorreo("cliente@example.invalid");
         var cb=(ComboBox<cliente>)campo(p,"cbCliente");((ObservableList<cliente>)campo(p,"clientesTodos")).add(cl);cb.getSelectionModel().selectFirst();
         var buscar=(TextField)campo(p,"buscarCliente");buscar.setText("muestra");
         verificar(cb.getItems().size()==1,"No filtró el nombre");

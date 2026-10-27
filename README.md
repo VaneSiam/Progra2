@@ -1,3 +1,5 @@
+> **Búsqueda y Gmail corregidos:** sugerencias por nombre/NIT al escribir, validación junto a los campos en Clientes y configuración de Gmail persistente fuera del ZIP. [Pasos de correo](docs/CORREO_GMAIL.md).
+
 > **Versión para la presentación:** pasos de instalación, precios por localidad y configuración de Gmail en [docs/ENTREGA_HOY.md](docs/ENTREGA_HOY.md). Incluye el mapa y correo del equipo. No incluye credenciales privadas.
 
 # Boletería · SVB-GUA

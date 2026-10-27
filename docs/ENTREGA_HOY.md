@@ -45,8 +45,8 @@ detenerse para resolverlo, no forzar ni reemplazar archivos del equipo.
 
 ## Buscar clientes
 
-En Punto de venta escribir nombre, apellido o NIT en el campo de búsqueda.
-Tolera tildes y el guion del NIT. Elegir el cliente de la lista filtrada.
+En Punto de venta escribir nombre, apellido o NIT en el campo de búsqueda. Las coincidencias se despliegan debajo del campo, con NIT y nombre. Seleccionar con clic o Enter; flecha abajo permite navegar.
+Tolera tildes y el guion del NIT. Elegir una sugerencia o usar la lista filtrada.
 Si no coincide nadie, muestra «No se encontró cliente…». Si el cliente no tiene
 NIT o tiene CF, muestra «El cliente no contiene NIT registrado (consumidor final)».
 La búsqueda no crea clientes ni altera sus datos.
@@ -62,10 +62,10 @@ No se promete entrega si no se configuró y verificó Gmail en esa computadora.
 2. Abrir https://myaccount.google.com/apppasswords y crear una contraseña de aplicación.
 3. En Java ir a Comprobantes y QR > Configurar Gmail en este equipo.
 4. Ingresar correo remitente y contraseña de aplicación de 16 letras. No usar la contraseña normal de Gmail. No pegarla en el chat.
-5. Pulsar Enviar comprobante por correo / consultar estado e ingresar una venta propia ya registrada (por ejemplo la #43, si se está usando el vendedor correcto o administrador). No volver a cobrar.
+5. Pulsar Probar conexión Gmail (sin enviar correo) para verificar TLS y autenticación. Luego pulsar Enviar comprobante por correo / consultar estado e ingresar una venta propia ya registrada (por ejemplo la #43, si se está usando el vendedor correcto o administrador). No volver a cobrar.
 6. Revisar tanto Gmail Enviados del remitente como bandeja/spam del destinatario.
 
-La configuración queda en correo.properties en la ruta que muestra el módulo.
+La configuración se conserva fuera del ZIP: en Windows, `%APPDATA%\SVB-GUA\correo.properties`.
 No se sube a GitHub ni se incluye en el ZIP. Gmail requiere salida SMTP 587 desde
 la computadora; si la red institucional lo bloquea, el error aparecerá y debe
 comprobarse desde una red que permita SMTP. Render no participa en este modo.
@@ -73,7 +73,7 @@ comprobarse desde una red que permita SMTP. Render no participa en este modo.
 Si al iniciar sesión la API entrega un token del endpoint de comprobantes, Java
 utiliza el envío por API ya implementado. No cambia a SMTP después de un error
 para no duplicar un mensaje aceptado. La pantalla muestra cuál modo está activo.
-El modo local registra aceptaciones en .svb-correo dentro de esta instalación:
+El modo local registra aceptaciones en la subcarpeta `envios` de la configuración permanente:
 evita doble clic y reenvíos en ese equipo, pero no coordina distintas computadoras.
 Un timeout queda incierto y requiere revisar Enviados antes de reenviar. No borrar
 ese registro ni repetir el cobro para intentar corregir el envío.
@@ -91,3 +91,22 @@ ese registro ni repetir el cobro para intentar corregir el envío.
 No se crearon ventas ni asientos de prueba en la BD compartida ni se enviaron
 correos reales. La entrega SMTP debe probarse con la cuenta configurada por su
 propietario; el parche de precios requiere despliegue y prueba PostgreSQL del equipo.
+
+## Correcciones de búsqueda y Clientes
+
+Las sugerencias se muestran mientras se escribe, sin tener que abrir manualmente
+el combo. Se comprueban NIT exactos y parciales, nombres con/sin tildes y NIT con
+separadores. Cambiar la consulta quita la selección previa para no cobrar a otro
+cliente por accidente. No se selecciona un cliente solo por escribir.
+
+Clientes valida en pantalla, junto a cada campo; Guardar permanece deshabilitado
+hasta completar los datos. El servicio también rechaza datos inválidos antes de
+HTTP. Los registros viejos que creó otra versión no se rellenan automáticamente:
+la columna Datos señala que deben revisarse. Punto de venta solo informa que hace
+falta corregir ese cliente y no habilita Cobrar hasta corregirlo en Clientes.
+
+Si falta Gmail local se pide configurarlo antes de la confirmación de compra.
+La contraseña queda en la configuración permanente del usuario, no en el ZIP.
+La prueba de conexión no envía mensajes. También se probó SMTP real en loopback,
+con STARTTLS, autenticación, un PDF adjunto y rechazo de una clave incorrecta; no
+se usó Gmail real. Ver CORREO_GMAIL.md para la configuración del propietario.

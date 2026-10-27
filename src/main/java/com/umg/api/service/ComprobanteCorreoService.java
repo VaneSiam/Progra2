@@ -13,7 +13,7 @@ public class ComprobanteCorreoService {
         // El equipo incorporó SMTP directo: conservarlo si no hay sesión del endpoint de correo.
         // Nunca cambiar de transporte tras un fallo: podría duplicarse un envío ya aceptado.
         if (Sesion.token() == null) {
-            if(!CorreoService.configurado()) throw new IllegalStateException("Correo pendiente: configura Gmail en Comprobantes y QR > Configurar Gmail. Archivo local: "+CorreoService.archivoConfiguracion());
+            if(!CorreoService.configurado()) throw new IllegalStateException("Configura Gmail antes de enviar el comprobante desde Comprobantes y QR > Configurar Gmail.");
             var documento=new ComprobanteService().cargar(id,vendedorPermitido);
             String destino=com.umg.api.validacion.Validaciones.correo(documento.correo());
             // Generar antes de reservar, para que errores de datos o PDF no bloqueen el envío.

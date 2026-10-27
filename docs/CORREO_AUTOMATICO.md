@@ -1,3 +1,5 @@
+> **Configuración actual de Gmail:** se guarda fuera del ZIP y se solicita antes de crear una venta si falta. En Comprobantes se puede probar conexión sin enviar correo. Ver [CORREO_GMAIL.md](CORREO_GMAIL.md).
+
 > **Integración actual:** también se conserva el SMTP directo que agregó el equipo. Si la API no entrega token de comprobantes, la aplicación usa Gmail local configurado desde la pantalla. Consultar [ENTREGA_HOY.md](ENTREGA_HOY.md) para los pasos actuales. No cambia de transporte automáticamente después de un fallo.
 
 # Comprobante automático por correo
