@@ -1,0 +1,20 @@
+ACTUALIZAR EL MISMO PROYECTO EN NETBEANS
+
+No abras ni importes otro proyecto.
+
+1. Detené el programa si está ejecutándose, pero dejá abierto tu proyecto de NetBeans.
+2. Abrí ACTUALIZAR-PROYECTO.zip y copiá la carpeta src y el archivo pom.xml a la carpeta de TU proyecto actual (la que ya contiene pom.xml). Elegí REEMPLAZAR cuando lo pregunte.
+3. En el mismo proyecto de NetBeans: Clean and Build y luego Run.
+
+Esta actualización reemplaza código; no borra conciertos, ventas ni clientes de la API. No contiene contraseñas y no cambia tu configuración de Gmail guardada fuera del proyecto.
+
+CAMBIOS
+- Comprobantes y QR: Reenviar comprobante al cliente permite otra copia de una venta existente mediante el Gmail de este equipo, sin crear ventas ni descontar inventario. Pide confirmación y bloquea envíos simultáneos o inciertos.
+- Botón superior Última venta: recuerda por usuario y equipo la última venta registrada y permite copiar su número.
+- Asientos: un solo precio base al generar; al comprar VIP +45%, Platea +25%, General +0%. Los asientos existentes conservan su precio base.
+- Teléfono de Guatemala: exactamente 8 números. Acepta 12345678, 1234-5678 o 1234 5678 y guarda 12345678.
+- Nombre y apellido: no admiten números, sin mensajes rojos de longitud.
+- NIT: solo números, mensaje corto "Obligatorio". Para CF, usar Consumidor final.
+- Gmail: ya no rechaza localmente la clave por tener dígitos o por su longitud; limpia espacios invisibles al pegar. Permite mostrarla para revisar el pegado.
+
+Después de guardar Gmail, usá Probar conexión Gmail para comprobar si Google acepta la clave. Google sigue requiriendo su contraseña de aplicación válida. No la compartas por chat.

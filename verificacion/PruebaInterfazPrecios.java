@@ -12,14 +12,18 @@ public class PruebaInterfazPrecios {
    Platform.setImplicitExit(false);var vista=new InventarioView();
    var escena=new Scene(vista,1180,700);escena.getStylesheets().add(MainView.class.getResource("/fx/style.css").toExternalForm());
    var stage=new Stage();stage.setScene(escena);stage.show();vista.applyCss();vista.layout();
-   for(String campo:java.util.List.of("txtPrecioVip","txtPrecioPlatea","txtPrecioGeneral")) {
-    var f=(TextField)PruebaInterfazIntegrada.campo(vista,campo);
-    PruebaInterfazIntegrada.verificar(f.isVisible(),"Falta precio "+campo);
-    f.setText(campo.contains("Vip")?"1000":campo.contains("Platea")?"500":"150");
+   var f=(TextField)PruebaInterfazIntegrada.campo(vista,"txtPrecio");
+   PruebaInterfazIntegrada.verificar(f.isVisible(),"Falta precio base");
+   f.setText("1000");
+   PruebaInterfazIntegrada.verificar(vista.lookupAll(".text-field").size()==1,"Debe existir un solo precio");
+   var base=new java.math.BigDecimal("1000.00");
+   for(var caso:java.util.Map.of("VIP","1450.00","Plata","1250.00","General","1000.00").entrySet()) {
+    var total=base.add(com.umg.api.service.Tarifas.cargo(base,com.umg.api.service.Tarifas.porcentaje(caso.getKey())));
+    PruebaInterfazIntegrada.verificar(total.compareTo(new java.math.BigDecimal(caso.getValue()))==0,"Recargo incorrecto");
    }
    PruebaInterfazIntegrada.foto(escena,Path.of(args[0]));
    stage.close();fin.complete(null);
   }catch(Throwable e){fin.completeExceptionally(e);}});
-  try{fin.get();System.out.println("PASS tres campos de precio visibles e independientes en JavaFX.");}finally{Platform.exit();}
+  try{fin.get();System.out.println("PASS un precio base visible; VIP 1450, Platea 1250 y General 1000.");}finally{Platform.exit();}
  }
 }

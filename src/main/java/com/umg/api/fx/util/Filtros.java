@@ -13,7 +13,14 @@ public final class Filtros {
         }));
     }
     public static void nombre(TextField campo,int max) { aplicar(campo,"[\\p{L}\\p{M} .’'&/\\-]*",max); }
-    public static void telefono(TextField campo) { aplicar(campo,"[0-9]*",15); }
+    public static void telefono(TextField campo) {
+        campo.setTextFormatter(new TextFormatter<String>(c -> {
+            if(!campo.isFocused())return c;
+            String n=c.getControlNewText();
+            return n.length()<=30 && n.matches("[0-9\\p{Z}\\s-]*") && n.replaceAll("[^0-9]","").length()<=8 ? c : null;
+        }));
+    }
+    public static void nit(TextField campo) {aplicar(campo,"[0-9]*",20);}
     public static void correo(TextField campo) { aplicar(campo,"[^\\s\\p{Cntrl}]*",254); }
     public static void precio(TextField campo) { aplicar(campo,"[0-9]{0,8}([.,][0-9]{0,2})?",11); }
 }

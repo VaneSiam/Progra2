@@ -8,8 +8,8 @@ public final class Validaciones {
     private Validaciones() {}
     public static String texto(String valor, String campo, int max, boolean obligatorio) {
         String s=valor==null?"":valor.trim();
-        if ((obligatorio && s.isEmpty()) || s.length()>max || s.codePoints().anyMatch(Character::isISOControl))
-            throw new IllegalArgumentException(campo+": "+(obligatorio?"es obligatorio y debe tener":"debe tener")+" hasta "+max+" caracteres válidos.");
+        if(obligatorio && s.isEmpty())throw new IllegalArgumentException("Obligatorio");
+        if(s.length()>max || s.codePoints().anyMatch(Character::isISOControl))throw new IllegalArgumentException("Revisa este campo.");
         return s;
     }
     public static String nombre(String valor,String campo,int max,boolean obligatorio) {
@@ -26,13 +26,15 @@ public final class Validaciones {
         return s;
     }
     public static String telefono(String valor) {
-        String s=texto(valor,"Teléfono",15,true);
-        if(!s.matches("[0-9]{8,15}")) throw new IllegalArgumentException("Teléfono: escribe de 8 a 15 dígitos, sin espacios, letras ni signos.");
+        String s=texto(valor,"Teléfono",30,true);
+        if(!s.matches("[0-9\\p{Z}\\s-]+"))throw new IllegalArgumentException("Solo números, espacios o guiones.");
+        s=s.replaceAll("[\\p{Z}\\s-]","");
+        if(!s.matches("[0-9]{8}"))throw new IllegalArgumentException("Usa 8 dígitos.");
         return s;
     }
     public static String nit(String valor) {
         String s=texto(valor,"NIT",20,true).toUpperCase(java.util.Locale.ROOT);
-        if(!s.matches("CF|[0-9]+-?[0-9K]")) throw new IllegalArgumentException("NIT: escribe CF o un número válido, con guion opcional y dígito final o K.");
+        if(!s.equals("CF") && !s.matches("[0-9]+"))throw new IllegalArgumentException("Obligatorio");
         return s;
     }
     public static BigDecimal precio(String valor) {

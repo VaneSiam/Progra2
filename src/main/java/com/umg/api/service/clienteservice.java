@@ -72,6 +72,7 @@ public class clienteservice {
     // ==========================================================
     public cliente createCliente (cliente c) throws Exception {
         com.umg.api.validacion.ValidacionCliente.validar(c);
+        c.setTelefono(com.umg.api.validacion.Validaciones.telefono(c.getTelefono()));
 
         
         
@@ -108,6 +109,7 @@ public class clienteservice {
     // ==========================================================
     public cliente updateCliente(int id, cliente c) throws Exception {
         com.umg.api.validacion.ValidacionCliente.validar(c);
+        c.setTelefono(com.umg.api.validacion.Validaciones.telefono(c.getTelefono()));
 
         try (CloseableHttpClient client = ApiConfig.crearCliente()) {
 

@@ -66,7 +66,21 @@ public class MainView extends BorderPane {
         Label rol=new Label(Sesion.esAdmin()?"Administrador":"Vendedor");rol.getStyleClass().add("role-badge");
         Button salir=new Button("Cerrar sesión");salir.setId("logout");salir.getStyleClass().add("logout-button");
         salir.setOnAction(e->{Sesion.cerrar();FxApp.mostrarLogin(null);});
-        HBox cabecera=new HBox(14,plegar,titulo,espacio,persona,rol,salir);
+        com.umg.api.fx.util.UltimaVenta.cargar(u.getId_usuario());
+        var numeroVenta = com.umg.api.fx.util.UltimaVenta.numeroProperty();
+        Button ultimaVenta = new Button();
+        ultimaVenta.setId("ultima-venta");
+        ultimaVenta.textProperty().bind(javafx.beans.binding.Bindings.createStringBinding(
+                () -> numeroVenta.get() > 0 ? "Última venta #" + numeroVenta.get() : "Sin ventas recientes", numeroVenta));
+        ultimaVenta.disableProperty().bind(numeroVenta.lessThanOrEqualTo(0));
+        ultimaVenta.setTooltip(new Tooltip("Copiar número de tu última venta registrada desde este equipo"));
+        ultimaVenta.setOnAction(e -> {
+            var contenido = new javafx.scene.input.ClipboardContent();
+            contenido.putString(String.valueOf(numeroVenta.get()));
+            javafx.scene.input.Clipboard.getSystemClipboard().setContent(contenido);
+            com.umg.api.fx.util.Ui.info("Número de venta #" + numeroVenta.get() + " copiado.");
+        });
+        HBox cabecera=new HBox(14,plegar,titulo,espacio,ultimaVenta,persona,rol,salir);
         cabecera.setAlignment(Pos.CENTER_LEFT);cabecera.getStyleClass().add("workspace-header");
         BorderPane trabajo=new BorderPane();trabajo.setTop(cabecera);setCenter(trabajo);
         // El área central pertenece al contenedor de trabajo, no al menú.
